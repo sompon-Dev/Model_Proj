@@ -1,78 +1,46 @@
-"""
-Search.py
-รับเนื้อเพลงบางส่วน → ค้นหาจาก index → คืนชื่อเพลง + ศิลปิน
-
-ต้องรัน BuildIndex.py ก่อนอย่างน้อย 1 ครั้ง
-
-กด Run ได้เลย แล้วพิมพ์เนื้อเพลงที่ต้องการค้นหา
-"""
-
 import pickle
-import numpy as np
-import faiss
+import torch
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 
-# ─────────────────────────────────────────────
-# กำหนด path แบบ relative
-# ─────────────────────────────────────────────
 BASE_PATH     = Path(__file__).parent
-INDEX_FILE    = BASE_PATH / "songs.index"
+INDEX_FILE    = BASE_PATH / "songs_embeddings.pt"
 METADATA_FILE = BASE_PATH / "songs_metadata.pkl"
 
-# ─────────────────────────────────────────────
-# PROCESS 1 — โหลดโมเดลและ index ที่ build ไว้แล้ว
-# ทำไม: โหลดครั้งเดียวตอนเริ่ม ไม่ต้อง build ใหม่ทุกครั้งที่ค้นหา
-# ─────────────────────────────────────────────
-print("โหลดโมเดลและ index...")
-model = SentenceTransformer("intfloat/multilingual-e5-base")
-index = faiss.read_index(str(INDEX_FILE))
-
+# 1. โหลด Embedding Tensor และ Metadata
+embeddings_norm = torch.load(INDEX_FILE)
 with open(METADATA_FILE, "rb") as f:
     metadata = pickle.load(f)
 
-print(f"พร้อมค้นหาจาก {index.ntotal} เพลง\n")
+model = SentenceTransformer("intfloat/multilingual-e5-base")
 
+def search(query_text, top_k=5):
+    # 2. แปลงข้อความที่ต้องการค้นหาเป็น Vector และ Normalize
+    query_vector = model.encode(query_text, convert_to_tensor=True)
+    query_vector = torch.nn.functional.normalize(query_vector, p=2, dim=0)
 
-# ─────────────────────────────────────────────
-# ฟังก์ชันค้นหาเพลง
-# ─────────────────────────────────────────────
-def search(snippet: str, top_k: int = 3):
-    """
-    PROCESS 2 — ค้นหาเพลงจากเนื้อเพลงที่ป้อนเข้ามา
-    ทำไม: แปลง snippet → vector แล้วหาว่า vector ไหนใกล้ที่สุดใน index
-           ยิ่ง score ใกล้ 1.0 ยิ่งใกล้เคียงมาก
-    top_k: แสดงผลกี่อันดับ (default 3)
-    """
+    # 3. คำนวณ Cosine Similarity ด้วย Matrix Multiplication (mm)
+    # query_vector (768) x embeddings_norm (N, 768)^T -> (N,)
+    scores = torch.matmul(embeddings_norm, query_vector)
 
-    # แปลง snippet เป็น vector
-    query_vector = model.encode([snippet], convert_to_numpy=True)
-    faiss.normalize_L2(query_vector)
+    # 4. ดึง Top-K เพลงที่คล้ายที่สุด
+    top_scores, top_indices = torch.topk(scores, k=top_k)
 
-    # ค้นหา top_k เพลงที่ใกล้เคียงที่สุด
-    scores, indices = index.search(query_vector, top_k)
+    # 5. แสดงผลลัพธ์
+    results = []
+    for score, idx in zip(top_scores, top_indices):
+        song = metadata[idx.item()]
+        results.append({
+            "song_name": song["song_name"],
+            "artist": song["artist"],
+            "score": score.item()
+        })
+    return results
 
-    # แสดงผล
-    print(f"\nผลการค้นหา: \"{snippet}\"")
-    print("─" * 40)
-    for rank, (score, idx) in enumerate(zip(scores[0], indices[0]), start=1):
-        song   = metadata[idx]["song_name"]
-        artist = metadata[idx]["artist"]
-        pct    = round(float(score) * 100, 1)
-        print(f"  {rank}. {song} - {artist}  ({pct}%)")
-    print()
-# ─────────────────────────────────────────────
-# PROCESS 3 — รับ input จากผู้ใช้วนซ้ำ
-# พิมพ์ 'exit' เพื่อออก
-# ─────────────────────────────────────────────
-print("พิมพ์เนื้อเพลงที่ต้องการค้นหา (พิมพ์ 'exit' เพื่อออก)")
-print("=" * 40)
-
-while True:
-    snippet = input("\nเนื้อเพลง: ").strip()
-    if snippet.lower() == "exit":
-        print("ออกจากโปรแกรม")
+# ทดสอบใช้งาน
+while True :
+    Text_Input = input("เนื้อร้อง : ")
+    List_Song = search(Text_Input)
+    print("เพลง : ",List_Song)
+    if Text_Input == "":
         break
-    if not snippet:
-        continue
-    search(snippet)
