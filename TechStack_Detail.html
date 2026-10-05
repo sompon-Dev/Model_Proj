@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech Stack ของ LyriSeek (แบบละเอียด)</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #2563eb;
+    --warn-bg: #fef3c7;
+    --warn-line: #d97706;
+    --info-bg: #e0f2fe;
+    --info-line: #0284c7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216;
+      --card: #171b21;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --line: #2a3038;
+      --accent: #60a5fa;
+      --warn-bg: #3a2e12;
+      --warn-line: #d97706;
+      --info-bg: #0c2a3a;
+      --info-line: #38bdf8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Tahoma, "Noto Sans Thai", sans-serif;
+    line-height: 1.7;
+  }
+  header, main { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 32px; }
+  h1 { margin: 0 0 4px; font-size: 1.9rem; }
+  h2 { margin: 0 0 4px; font-size: 1.35rem; }
+  h3 { margin: 20px 0 4px; font-size: 1.05rem; }
+  p { margin: 6px 0; }
+  .sub { color: var(--muted); margin-bottom: 16px; }
+
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    margin-top: 16px;
+  }
+  nav .inner {
+    max-width: 1100px; margin: 0 auto; padding: 8px 16px;
+    display: flex; gap: 8px; overflow-x: auto; white-space: nowrap;
+  }
+  nav a {
+    color: var(--text); text-decoration: none; font-size: .9rem;
+    padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--card);
+  }
+  nav a:hover { border-color: var(--accent); color: var(--accent); }
+
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+  }
+  .num {
+    display: inline-block; min-width: 28px; height: 28px; line-height: 28px;
+    text-align: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: .95rem; margin-right: 8px;
+  }
+  .tools { display: flex; gap: 6px; align-items: center; margin: 12px 0 6px; color: var(--muted); font-size: .85rem; }
+  .tools button {
+    border: 1px solid var(--line); background: var(--bg); color: var(--text);
+    border-radius: 6px; padding: 2px 10px; cursor: pointer; font-size: .9rem;
+  }
+  .tools button:hover { border-color: var(--accent); }
+  .box {
+    overflow: auto; border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; background: #ffffff; color: #1f2937;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .box { background: #12161b; color: #e5e7eb; }
+  }
+  .box svg { display: block; margin: 0 auto; height: auto; }
+  pre.mermaid { visibility: hidden; margin: 0; }
+  pre.mermaid[data-processed] { visibility: visible; }
+
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  code {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: .9em;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 10px 0 4px; font-size: .9rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 16px; height: 16px; border-radius: 4px; border: 2px solid; display: inline-block; }
+  .sw.fe   { background: #dbeafe; border-color: #2563eb; }
+  .sw.be   { background: #dcfce7; border-color: #16a34a; }
+  .sw.ml   { background: #fce7f3; border-color: #db2777; }
+  .sw.db   { background: #ede9fe; border-color: #7c3aed; }
+  .sw.tool { background: #f1f5f9; border-color: #64748b; }
+  .sw.warn { background: #fef3c7; border-color: #d97706; }
+
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--bg); }
+  .tableWrap { overflow-x: auto; }
+  .grp td {
+    background: var(--bg); font-weight: 600; border-left: 4px solid var(--accent);
+  }
+  .note {
+    background: var(--warn-bg); border-left: 4px solid var(--warn-line);
+    padding: 8px 12px; border-radius: 6px; margin: 12px 0;
+  }
+  .info {
+    background: var(--info-bg); border-left: 4px solid var(--info-line);
+    padding: 8px 12px; border-radius: 6px; margin: 12px 0;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: var(--bg); }
+  .card b { display: block; margin-bottom: 2px; }
+  .card span { color: var(--muted); font-size: .92rem; }
+  #fail { display: none; }
+  footer { max-width: 1100px; margin: 0 auto; padding: 8px 16px 40px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tech Stack ของ LyriSeek</h1>
+  <p class="sub">เทคโนโลยีทั้งหมดที่ใช้ในโปรเจกต์ แต่ละตัวคืออะไร ทำหน้าที่อะไร และต่อกันอย่างไร สรุปจากโค้ดและเวอร์ชันที่ติดตั้งจริงในเครื่องนี้</p>
+
+  <div class="note" id="fail">
+    ⚠️ โหลดตัวสร้างผัง (Mermaid) ไม่ได้ ไฟล์นี้ต้องต่ออินเทอร์เน็ตตอนเปิดครั้งแรก กรุณาตรวจสอบการเชื่อมต่อแล้วรีเฟรชหน้านี้
+  </div>
+
+  <div class="info">
+    <b>สรุปสั้นที่สุด:</b> แอปมือถือเขียนด้วย <b>JavaScript (React Native + Expo)</b> คุยกับ server ที่เขียนด้วย <b>Python (FastAPI)</b> ผ่าน HTTP/JSON ฝั่ง server แบ่งเป็นสองงาน: ค้นหาเพลงด้วยโมเดลภาษา <b>(PyTorch + sentence-transformers)</b> และจัดการข้อมูลผู้ใช้/เพลงใน <b>PostgreSQL</b>
+  </div>
+
+  <div class="grid">
+    <div class="card"><b>3 ภาษา</b><span>JavaScript (แอป), Python (server + โมเดล), SQL (ฐานข้อมูล)</span></div>
+    <div class="card"><b>2 server</b><span>API.py พอร์ต 8002 (ค้นหา), main.py พอร์ต 8000 (ฐานข้อมูล)</span></div>
+    <div class="card"><b>2 ที่เก็บข้อมูล</b><span>PostgreSQL (ผู้ใช้/เพลง) และไฟล์ index .pt/.pkl (ใช้ค้นหา)</span></div>
+    <div class="card"><b>1 โมเดล</b><span>multilingual-e5-base สำเร็จรูป ไม่ได้เทรนเอง</span></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw fe"></i> ฝั่งแอป (Frontend)</span>
+    <span><i class="sw be"></i> ฝั่ง server (Backend)</span>
+    <span><i class="sw ml"></i> โมเดล / ML</span>
+    <span><i class="sw db"></i> ข้อมูล</span>
+    <span><i class="sw tool"></i> เครื่องมือพัฒนา</span>
+    <span><i class="sw warn"></i> ข้อสังเกต</span>
+  </div>
+</header>
+
+<nav>
+  <div class="inner">
+    <a href="#s1">1 ภาพรวมเป็นชั้น</a>
+    <a href="#s2">2 ค้นหาผ่านอะไรบ้าง</a>
+    <a href="#s3">3 สมัครสมาชิกผ่านอะไรบ้าง</a>
+    <a href="#s4">4 ตอนรันระบบ</a>
+    <a href="#s5">5 เครือข่าย</a>
+    <a href="#s6">6 ตารางเทคโนโลยี</a>
+    <a href="#s7">7 ข้อสังเกต</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============ 1 ภาพรวมเป็นชั้น ============ -->
+<section id="s1">
+  <h2><span class="num">1</span>ภาพรวม: Tech Stack แบ่งเป็นชั้น</h2>
+  <p>อ่านจากบนลงล่าง: แอปอยู่บนสุด ข้อมูลอยู่ล่างสุด ลูกศรคือทิศทางที่ข้อมูลไหล</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TB
+  subgraph FE["📱 ① Frontend: แอปมือถือ (ภาษา JavaScript)"]
+    direction LR
+    fe1["React 19<br/>สร้างหน้าจอแบบ component"]
+    fe2["React Native 0.86<br/>เปลี่ยนเป็นหน้าจอมือถือจริง"]
+    fe3["Expo 57<br/>เครื่องมือรันและตั้งค่าแอป"]
+    fe4["React Navigation 7<br/>สลับหน้า"]
+    fe5["fetch()<br/>เรียก API"]
+  end
+
+  subgraph NET["🌐 ② การสื่อสาร"]
+    direction LR
+    net1["HTTP + JSON (REST)<br/>ผ่าน Wi-Fi / LAN"]
+  end
+
+  subgraph BE["⚙️ ③ Backend: server (ภาษา Python 3.13)"]
+    direction LR
+    be1["Uvicorn 0.52<br/>รับ-ส่ง HTTP"]
+    be2["FastAPI 0.141<br/>กำหนด endpoint"]
+    be3["Pydantic 2.13<br/>ตรวจข้อมูลที่ส่งเข้ามา"]
+    be4["API.py พอร์ต 8002<br/>งานค้นหาเพลง"]
+    be5["main.py พอร์ต 8000<br/>งานฐานข้อมูล"]
+  end
+
+  subgraph ML["🧠 ④ ค้นหาด้วยโมเดล"]
+    direction LR
+    ml1["sentence-transformers 5.5<br/>+ transformers 5.8"]
+    ml2["PyTorch 2.10 (รุ่น CPU)<br/>คำนวณ tensor"]
+    ml3["multilingual-e5-base<br/>โมเดลแปลงข้อความเป็น vector"]
+  end
+
+  subgraph DATA["🗄️ ⑤ ที่เก็บข้อมูล"]
+    direction LR
+    d1[("PostgreSQL<br/>ผู้ใช้ เพลง แนว อารมณ์<br/>ต่อผ่าน psycopg2")]
+    d2[("ไฟล์ index<br/>songs_embeddings.pt<br/>songs_metadata.pkl")]
+    d3["passlib + bcrypt<br/>เข้ารหัสรหัสผ่านก่อนเก็บ"]
+  end
+
+  subgraph PREP["🧹 ⑥ เตรียมข้อมูล (ทำล่วงหน้าครั้งเดียว)"]
+    direction LR
+    p1["PyThaiNLP 5.3<br/>ตัดคำภาษาไทย"]
+    p2["pandas 3.0 + numpy 2.4<br/>จัดการตารางข้อมูล"]
+  end
+
+  FE -- "POST /search, POST /users" --> NET
+  NET --> BE
+  BE -- "API.py" --> ML
+  BE -- "main.py" --> DATA
+  ML -. "โหลด index ตอนเริ่ม" .-> DATA
+  PREP -- "สร้าง index" --> DATA
+
+  class fe1,fe2,fe3,fe4,fe5 fe
+  class net1 tool
+  class be1,be2,be3,be4,be5 be
+  class ml1,ml2,ml3 ml
+  class d1,d2,d3 db
+  class p1,p2 be
+</pre>
+  </div>
+  <ul>
+    <li>ชั้น ③ Backend มี Uvicorn และ FastAPI เป็นฐานร่วมกัน แล้วแยกเป็นสองโปรแกรมตามหน้าที่ (<code>API.py</code> กับ <code>main.py</code>)</li>
+    <li>ชั้น ④ ใช้เฉพาะตอนค้นหา ส่วนชั้น ⑤ ตัว PostgreSQL ใช้เฉพาะงานผู้ใช้/เพลง การค้นหาเพลงอ่านจากไฟล์ index ไม่ได้แตะ PostgreSQL</li>
+  </ul>
+</section>
+
+<!-- ============ 2 ค้นหา ============ -->
+<section id="s2">
+  <h2><span class="num">2</span>คำค้น 1 ครั้ง ผ่านเทคโนโลยีอะไรบ้าง</h2>
+  <p>ไล่ตามผู้ใช้กดค้นหาเพลง แต่ละกล่องระบุว่าขั้นนั้นใช้เทคโนโลยีตัวไหน</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  u(["ผู้ใช้พิมพ์คำค้นบนหน้าจอ"]) --> a["React Native: TextInput<br/>เก็บข้อความใน state ด้วย useState (React)"]
+  a --> b["JavaScript: fetch()<br/>ส่ง HTTP POST พร้อมข้อมูล JSON"]
+  b --> c["เครือข่าย Wi-Fi / LAN<br/>ไปที่ IP เครื่อง server พอร์ต 8002"]
+  c --> d["Uvicorn<br/>รับ HTTP จากเครือข่ายเข้ามา"]
+  d --> e["FastAPI<br/>จับคู่ POST /search กับฟังก์ชัน run_search"]
+  e --> f["Pydantic<br/>ตรวจว่าข้อมูลตรงกับ QueryRequest"]
+  f --> g["Search.py (Python)"]
+  g --> h["sentence-transformers + PyTorch<br/>โมเดล e5 แปลงคำค้นเป็น vector<br/>คูณเมทริกซ์เทียบกับทุกเพลง เลือก Top-K"]
+  h --> i["FastAPI<br/>แปลงผลลัพธ์เป็น JSON"]
+  i --> j["Uvicorn<br/>ส่ง HTTP response กลับ"]
+  j --> k["JavaScript: response.json()<br/>แกะข้อมูลที่ได้กลับมา"]
+  k --> l["React: setResults แล้ว render ใหม่<br/>แสดงรายการเพลงบนจอ"]
+
+  class u,a,b,k,l fe
+  class c tool
+  class d,e,f,g,i,j be
+  class h ml
+</pre>
+  </div>
+  <p>สังเกตว่าคำขอเดินทาง <b>ไป</b> ผ่านเทคโนโลยีชุดหนึ่ง แล้ว <b>กลับ</b> ผ่านชุดเดิมย้อนกลับ แอปฝั่งเดียวใช้ JavaScript/React ส่วน server ทั้งหมดเป็น Python</p>
+</section>
+
+<!-- ============ 3 สมัครสมาชิก ============ -->
+<section id="s3">
+  <h2><span class="num">3</span>สมัครสมาชิก 1 ครั้ง ผ่านเทคโนโลยีอะไรบ้าง</h2>
+  <p>เส้นทางเดียวกับการค้นหาในตอนต้น แต่ไปที่ <code>main.py</code> (พอร์ต 8000) และไปจบที่ฐานข้อมูล</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  u(["ผู้ใช้กรอกฟอร์มสมัครสมาชิก"]) --> a["React Native: TextInput หลายช่อง<br/>เก็บใน state ด้วย useState"]
+  a --> b["JavaScript ตรวจเบื้องต้น<br/>กรอกครบไหม รหัสผ่านตรงกันไหม"]
+  b --> c["fetch()<br/>POST ไป IP เครื่อง server พอร์ต 8000 /users"]
+  c --> d["Uvicorn รับคำขอ"]
+  d --> e["FastAPI<br/>จับคู่ POST /users กับ create_user"]
+  e --> f["Pydantic + email-validator<br/>ตรวจ UserData และรูปแบบอีเมล"]
+  f --> g["passlib + bcrypt<br/>เข้ารหัสรหัสผ่าน"]
+  g --> h["psycopg2<br/>เปิดการเชื่อมต่อ ส่งคำสั่ง SQL INSERT"]
+  h --> i[("PostgreSQL<br/>บันทึกลงตาราง User")]
+  i --> j["FastAPI ตอบ JSON<br/>status success + users_id"]
+  j --> k["React Navigation<br/>เปลี่ยนไปหน้า Otp"]
+
+  class u,a,b,c,k fe
+  class d,e,f,g,h,j be
+  class i db
+</pre>
+  </div>
+  <p>ต่างจากเส้นทางค้นหาตรงที่ ไม่ผ่านโมเดล แต่ผ่านชุด <b>ตรวจอีเมล → เข้ารหัสรหัสผ่าน → เขียนลงฐานข้อมูล</b></p>
+</section>
+
+<!-- ============ 4 ตอนรันระบบ ============ -->
+<section id="s4">
+  <h2><span class="num">4</span>ตอนรันระบบ ใช้เครื่องมืออะไรบ้าง</h2>
+  <p><code>Start.py</code> เป็นตัวสั่งเปิดทุกอย่าง แสดงเครื่องมือที่อยู่เบื้องหลังแต่ละหน้าต่าง cmd</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  s(["python Start.py<br/>Python 3.13 + โมดูล subprocess"]) --> c1["cmd 1: python -m uvicorn API:app<br/>เปิด server ค้นหา พอร์ต 8002"]
+  s --> c2["cmd 2: python -m uvicorn main:app --reload<br/>เปิด server ฐานข้อมูล พอร์ต 8000"]
+  s -- "รอให้ 2 พอร์ตพร้อมก่อน" --> c3["cmd 3: npm run android<br/>Node.js + npm"]
+
+  c3 --> x1["Expo CLI<br/>เปิด Metro bundler (dev server ของแอป)"]
+  x1 --> x2["Android Emulator (Android Studio)<br/>โหลดโค้ด JavaScript ของแอปจาก Metro"]
+  x2 --> x3["แอป LyriSeek ทำงานบน emulator"]
+
+  c1 -- "รับคำค้น" --> x3
+  c2 -- "รับข้อมูลสมัครสมาชิก" --> x3
+  c2 --> pg[("PostgreSQL พอร์ต 5432<br/>ดูข้อมูลได้ผ่าน pgAdmin")]
+  c1 --> ix[("ไฟล์ index<br/>โหลดตอนเริ่ม")]
+
+  class s,c1,c2 be
+  class c3,x1,x2,x3 fe
+  class pg,ix db
+</pre>
+  </div>
+  <ul>
+    <li><b>Uvicorn</b> คือโปรแกรมที่เปิด server จริง ส่วน <b>FastAPI</b> คือชุดกติกาว่า URL ไหนทำอะไร (ผมอธิบายเพิ่มไว้ใน <code>Document.md</code>)</li>
+    <li><b>Metro</b> คือ dev server ของ React Native ที่แปลงและส่งโค้ด JavaScript ให้แอปบน emulator ทุกครั้งที่แก้โค้ดแอป จะอัปเดตให้เอง</li>
+    <li><code>--reload</code> ของ <code>main.py</code> ทำให้ server รีสตาร์ทเองเมื่อแก้โค้ด ส่วน <code>API.py</code> ไม่ได้ใส่ ต้องรีสตาร์ทเอง</li>
+  </ul>
+</section>
+
+<!-- ============ 5 เครือข่าย ============ -->
+<section id="s5">
+  <h2><span class="num">5</span>เครื่องและเครือข่าย: ใครคุยกับใคร</h2>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart LR
+  subgraph EM["📱 Android Emulator (Android Studio)"]
+    e1["แอป LyriSeek<br/>React Native"]
+  end
+
+  subgraph PC["💻 เครื่องคอม (IP 192.168.1.7 ตามที่เขียนไว้ในโค้ด)"]
+    p4["Metro (Expo)<br/>พอร์ตปกติ 8081"]
+    p1["API.py<br/>พอร์ต 8002"]
+    p2["main.py<br/>พอร์ต 8000"]
+    p3[("PostgreSQL<br/>พอร์ต 5432")]
+  end
+
+  p4 -- "ส่งโค้ด JavaScript ของแอป" --> e1
+  e1 -- "http://192.168.1.7:8002/search" --> p1
+  e1 -- "http://192.168.1.7:8000/users" --> p2
+  p2 -- "localhost:5432" --> p3
+
+  class e1 fe
+  class p4 tool
+  class p1,p2 be
+  class p3 db
+</pre>
+  </div>
+  <ul>
+    <li>ที่ต้องใช้ <code>--host 0.0.0.0</code> ตอนรัน server เพราะแอปเรียกจาก "อีกเครื่อง" (emulator หรือมือถือจริง) ถ้าใช้ <code>127.0.0.1</code> จะรับได้แค่จากเครื่องคอมเอง</li>
+    <li>ใน Android Emulator ที่อยู่พิเศษ <code>10.0.2.2</code> หมายถึง "เครื่องคอมที่รัน emulator" ใช้แทน IP จริงได้ ทำให้ไม่ต้องแก้โค้ดเมื่อ IP เครื่องเปลี่ยน (ตอนนี้ URL ผูกกับ <code>192.168.1.7</code> ไว้ในโค้ด)</li>
+    <li>PostgreSQL อยู่เครื่องเดียวกับ <code>main.py</code> จึงต่อด้วย <code>localhost</code> ไม่ต้องเปิดให้เครื่องอื่นเข้าถึงโดยตรง</li>
+  </ul>
+</section>
+
+<!-- ============ 6 ตารางเทคโนโลยี ============ -->
+<section id="s6">
+  <h2><span class="num">6</span>ตารางเทคโนโลยีทั้งหมด</h2>
+  <p>เวอร์ชันของ Python ฝั่ง server ตรวจจาก <code>python</code> ที่อยู่ใน PATH ของเครื่องนี้ ส่วนฝั่งแอปเป็นเวอร์ชันที่ระบุใน <code>package.json</code> (เครื่องหมาย <code>^</code> = ตั้งแต่เวอร์ชันนี้ขึ้นไปในตระกูลเดียวกัน, <code>~</code> = แก้ไขย่อยเท่านั้น)</p>
+  <div class="tableWrap">
+  <table>
+    <thead><tr><th>เทคโนโลยี</th><th>เวอร์ชัน</th><th>คืออะไร / ทำอะไรในโปรเจกต์นี้</th><th>อยู่ที่ไฟล์</th></tr></thead>
+    <tbody>
+
+      <tr class="grp"><td colspan="4">📱 Frontend (แอปมือถือ)</td></tr>
+      <tr><td>JavaScript</td><td>—</td><td>ภาษาที่ใช้เขียนแอป</td><td><code>FrontEnd/Frontend/src/*.js</code>, <code>App.js</code></td></tr>
+      <tr><td>React</td><td>^19.2.3</td><td>library สร้างหน้าจอแบบ component และจัดการ state (เช่น <code>useState</code> เก็บข้อความที่พิมพ์)</td><td>ทุกไฟล์ใน <code>src</code></td></tr>
+      <tr><td>React Native</td><td>^0.86.3</td><td>เอา React ไปสร้างแอปมือถือจริง มีชิ้นส่วนสำเร็จรูป เช่น <code>View</code>, <code>Text</code>, <code>TextInput</code>, <code>ScrollView</code></td><td>ทุกไฟล์ใน <code>src</code></td></tr>
+      <tr><td>Expo</td><td>~57.0.22</td><td>ชุดเครื่องมือครอบ React Native ช่วยรันแอป ตั้งค่าแอป (<code>app.json</code>) ไม่ต้องตั้งค่า Android ด้วยมือมาก</td><td><code>package.json</code>, <code>app.json</code></td></tr>
+      <tr><td>React Navigation (native + native-stack)</td><td>^7.3.18 / ^7.18.10</td><td>จัดการการสลับหน้า (Login → Register → Otp ฯลฯ)</td><td><code>App.js</code></td></tr>
+      <tr><td>react-native-safe-area-context</td><td>^5.9.1</td><td>เว้นขอบจอไม่ให้เนื้อหาชนรอยบากหรือแถบระบบ</td><td>ทุกหน้า (<code>SafeAreaView</code>)</td></tr>
+      <tr><td>expo-status-bar, @expo/vector-icons</td><td>~57.0.1 / ^15.1.1</td><td>ควบคุมสีแถวสถานะ และไอคอนสำเร็จรูป</td><td>ทุกหน้า, <code>AdminPage.js</code>, <code>Addsong.js</code></td></tr>
+      <tr><td><code>fetch</code></td><td>ในตัว</td><td>คำสั่งมาตรฐานของ JavaScript ส่งคำขอ HTTP ไปหา server ไม่ต้องติดตั้งเพิ่ม</td><td><code>Homeuser.js</code>, <code>Register.js</code></td></tr>
+
+      <tr class="grp"><td colspan="4">⚙️ Backend (server)</td></tr>
+      <tr><td>Python</td><td>3.13.14</td><td>ภาษาที่ใช้เขียน server, โมเดล และสคริปต์เตรียมข้อมูลทั้งหมด</td><td><code>Ver.3/*.py</code>, <code>Backend_Database/*.py</code>, <code>Start.py</code></td></tr>
+      <tr><td>FastAPI</td><td>0.141.1</td><td>framework สร้าง API ประกาศ endpoint ด้วย <code>@app.post(...)</code> และสร้างหน้า <code>/docs</code> ให้อัตโนมัติ</td><td><code>API.py</code>, <code>main.py</code></td></tr>
+      <tr><td>Uvicorn</td><td>0.52.4</td><td>โปรแกรมที่เปิด server จริง รับคำขอจากเครือข่ายส่งให้ FastAPI</td><td>รันโดย <code>Start.py</code></td></tr>
+      <tr><td>Starlette</td><td>1.6.0</td><td>แกนกลางที่ FastAPI สร้างอยู่บน เช่น ระบบ middleware ที่ใช้ทำ CORS</td><td>ใช้ผ่าน FastAPI</td></tr>
+      <tr><td>Pydantic</td><td>2.13.5</td><td>กำหนด "แบบฟอร์ม" ข้อมูลที่รับเข้ามา (เช่น <code>QueryRequest</code>, <code>UserData</code>) และตรวจให้อัตโนมัติ</td><td><code>API.py</code>, <code>main.py</code></td></tr>
+      <tr><td>email-validator</td><td>2.3.0</td><td>ตรวจรูปแบบอีเมลของชนิด <code>EmailStr</code></td><td><code>main.py</code></td></tr>
+      <tr><td>passlib + bcrypt</td><td>1.7.4 / 4.0.1</td><td>เข้ารหัสรหัสผ่านแบบทางเดียวก่อนเก็บลงฐานข้อมูล</td><td><code>main.py</code></td></tr>
+
+      <tr class="grp"><td colspan="4">🧠 โมเดลและการค้นหา</td></tr>
+      <tr><td>PyTorch (torch)</td><td>2.10.0 (รุ่น CPU)</td><td>library คำนวณ tensor ใช้ normalize, คูณเมทริกซ์ (<code>matmul</code>), เลือก Top-K, บันทึก/โหลดไฟล์ <code>.pt</code> รุ่นที่ติดตั้งเป็นรุ่นที่รันบน CPU</td><td><code>Search.py</code>, <code>Buildindex.py</code></td></tr>
+      <tr><td>sentence-transformers</td><td>5.5.0</td><td>ตัวห่อที่ทำให้เรียกโมเดลแปลงข้อความเป็น vector ด้วยคำสั่งเดียว (<code>model.encode</code>)</td><td><code>Search.py</code>, <code>Buildindex.py</code></td></tr>
+      <tr><td>transformers (Hugging Face)</td><td>5.8.0</td><td>library เบื้องหลังที่โหลดและรันตัวโมเดล</td><td>ใช้ผ่าน sentence-transformers</td></tr>
+      <tr><td>multilingual-e5-base</td><td>—</td><td>โมเดลสำเร็จรูปชนิด XLM-RoBERTa 12 ชั้น ~278 ล้านพารามิเตอร์ รองรับหลายภาษารวมไทย ให้ vector 768 ค่า</td><td><code>Search.py</code>, <code>Buildindex.py</code></td></tr>
+      <tr><td>pickle</td><td>ในตัว Python</td><td>บันทึก/โหลดรายชื่อเพลงและศิลปิน (<code>songs_metadata.pkl</code>)</td><td><code>Buildindex.py</code>, <code>Search.py</code></td></tr>
+
+      <tr class="grp"><td colspan="4">🧹 เตรียมข้อมูล</td></tr>
+      <tr><td>PyThaiNLP</td><td>5.3.4</td><td>ตัดคำภาษาไทย (<code>newmm</code>) และแก้วรรณยุกต์/สระที่ผิดตำแหน่ง</td><td><code>Clean.py</code></td></tr>
+      <tr><td>pandas</td><td>3.0.1</td><td>อ่าน <code>dataset.csv</code> เป็นตารางเพื่อดึงเนื้อเพลงและชื่อเพลง</td><td><code>Buildindex.py</code></td></tr>
+      <tr><td>numpy</td><td>2.4.2</td><td>library ตัวเลขที่ pandas และ PyTorch ใช้ร่วมกัน</td><td><code>Buildindex.py</code></td></tr>
+      <tr><td>csv, pathlib, re</td><td>ในตัว Python</td><td>เขียนไฟล์ CSV, จัดการที่อยู่ไฟล์, ลบอักขระพิเศษด้วย regex</td><td><code>MergeCSV.py</code>, <code>Clean.py</code></td></tr>
+
+      <tr class="grp"><td colspan="4">🗄️ ฐานข้อมูล</td></tr>
+      <tr><td>PostgreSQL</td><td>ตรวจเวอร์ชันจาก PATH ไม่ได้</td><td>ฐานข้อมูลชื่อ <code>LyricSeekDB</code> พอร์ต 5432 มีตาราง User, Train_Song, Song, Genre, Genre_Song, Mood, Mood_Song</td><td>ต่อจาก <code>main.py</code></td></tr>
+      <tr><td>psycopg2-binary</td><td>2.9.13</td><td>library ให้ Python ส่งคำสั่ง SQL ไปหา PostgreSQL (ใช้ <code>RealDictCursor</code> ให้ผลลัพธ์เป็น dict)</td><td><code>main.py</code></td></tr>
+      <tr><td>SQL</td><td>—</td><td>ภาษาสั่งฐานข้อมูล: <code>INSERT</code>, <code>SELECT</code>, <code>UPDATE</code>, <code>DELETE</code></td><td><code>main.py</code></td></tr>
+      <tr><td>pgAdmin</td><td>—</td><td>โปรแกรมดูและจัดการฐานข้อมูลผ่านหน้าจอ (ตามที่อ้างในคอมเมนต์ของ <code>main.py</code>)</td><td>เครื่องมือภายนอก</td></tr>
+
+      <tr class="grp"><td colspan="4">🛠️ เครื่องมือพัฒนา</td></tr>
+      <tr><td>Node.js + npm</td><td>v25.2.1 / 11.6.4</td><td>รันเครื่องมือของแอป (<code>npm run android</code>) และจัดการแพ็กเกจฝั่ง JavaScript</td><td><code>package.json</code></td></tr>
+      <tr><td>Android Studio (Emulator)</td><td>—</td><td>จำลองโทรศัพท์ Android บนคอมไว้รันและทดสอบแอป</td><td>เครื่องมือภายนอก</td></tr>
+      <tr><td>VS Code</td><td>—</td><td>โปรแกรมเขียนโค้ดที่ใช้แก้ไฟล์ในโปรเจกต์นี้</td><td>—</td></tr>
+      <tr><td>requests</td><td>2.34.2</td><td>library ของ Python ใช้ส่ง HTTP ในสคริปต์ทดสอบ (เทียบได้กับ <code>fetch</code> ฝั่ง Python)</td><td><code>TestAPICall.py</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 7 ข้อสังเกต ============ -->
+<section id="s7">
+  <h2><span class="num">7</span>ข้อสังเกตเกี่ยวกับการเลือกใช้ Tech Stack</h2>
+  <ol>
+    <li><b>สองภาษา สองโลก:</b> แอปเป็น JavaScript ส่วน server เป็น Python สองฝั่งไม่ได้แชร์โค้ดกัน คุยกันผ่าน HTTP/JSON เท่านั้น จึงเปลี่ยนฝั่งใดฝั่งหนึ่งได้อิสระ ตราบใดที่รูปแบบข้อมูลตรงกัน</li>
+    <li><b>แยก server เป็นสองตัว:</b> งานค้นหา (หนัก ต้องโหลดโมเดล เริ่มช้า) แยกจากงานฐานข้อมูล (เบา เริ่มเร็ว) ข้อดีคือแก้ฝั่งฐานข้อมูลได้โดยไม่ต้องโหลดโมเดลใหม่ ข้อแลกเปลี่ยนคือแอปต้องรู้ที่อยู่ของสอง server</li>
+    <li><b>ที่อยู่ผูกกับ IP ในโค้ด:</b> <code>Homeuser.js</code> และ <code>Register.js</code> เขียน <code>192.168.1.7</code> ตรงๆ ถ้า IP เครื่องเปลี่ยน ต้องแก้ทุกไฟล์ ทางเลือกคือเก็บที่อยู่ไว้ที่ไฟล์เดียว หรือใช้ <code>10.0.2.2</code> บน emulator</li>
+    <li><b>ใช้ HTTP ไม่ใช่ HTTPS:</b> เหมาะกับการพัฒนาในเครือข่ายภายใน ถ้าจะเปิดใช้งานจริงควรเพิ่ม HTTPS และระบบยืนยันตัวตน</li>
+    <li><b>โมเดลรันบน CPU:</b> PyTorch ที่ติดตั้งเป็นรุ่น CPU สำหรับข้อมูล 79 เพลง เพียงพอ ถ้าเพลงเพิ่มมากหรือเปลี่ยนไปใช้โมเดลใหญ่ขึ้น (เช่นตระกูล Qwen3-Embedding) อาจต้องพิจารณา GPU</li>
+    <li><b>เก็บข้อมูลสองที่ยังไม่เชื่อมกัน:</b> เพลงที่ค้นได้อยู่ในไฟล์ index ส่วนตาราง Song ใน PostgreSQL เป็นข้อมูลอีกชุดหนึ่ง ถ้าอยากให้ตรงกัน ต้องออกแบบขั้นตอนสร้าง index จากฐานข้อมูล</li>
+  </ol>
+</section>
+
+</main>
+
+<footer>อ้างอิงจาก: FrontEnd/Frontend/package.json, App.js, src/*.js, Ver.3/*.py, Backend_Database/main.py, Start.py และเวอร์ชันที่ตรวจด้วย pip list / node --version ในเครื่องนี้</footer>
+
+<script type="module">
+  const CLASSDEFS = [
+    'classDef fe   fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#0f172a',
+    'classDef be   fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#0f172a',
+    'classDef ml   fill:#fce7f3,stroke:#db2777,stroke-width:1.5px,color:#0f172a',
+    'classDef db   fill:#ede9fe,stroke:#7c3aed,stroke-width:1.5px,color:#0f172a',
+    'classDef tool fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px,color:#0f172a'
+  ].join('\n');
+
+  try {
+    const mod = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+    const mermaid = mod.default;
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    // เติมสีมาตรฐานท้ายทุกผัง
+    document.querySelectorAll('pre.mermaid').forEach((el) => {
+      el.innerHTML = el.innerHTML.trim() + '\n' + CLASSDEFS;
+    });
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: dark ? 'dark' : 'default',
+      securityLevel: 'loose',
+      fontFamily: '"Segoe UI", Tahoma, "Noto Sans Thai", sans-serif',
+      flowchart: { htmlLabels: true, curve: 'basis', useMaxWidth: true, padding: 12, nodeSpacing: 40, rankSpacing: 46 }
+    });
+    await mermaid.run({ querySelector: 'pre.mermaid' });
+
+    // ปุ่มซูมของแต่ละผัง
+    document.querySelectorAll('section').forEach((sec) => {
+      const svg = sec.querySelector('.box pre.mermaid svg');
+      if (!svg) return;
+      let zoom = 1;
+      sec.querySelectorAll('.tools button').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          zoom = Math.min(3, Math.max(0.6, zoom + (btn.dataset.z === '+' ? 0.25 : -0.25)));
+          svg.style.maxWidth = 'none';
+          svg.style.width = (zoom * 100) + '%';
+        });
+      });
+    });
+  } catch (err) {
+    console.error(err);
+    document.getElementById('fail').style.display = 'block';
+    document.querySelectorAll('pre.mermaid').forEach((el) => { el.style.visibility = 'visible'; });
+  }
+</script>
+</body>
+</html>

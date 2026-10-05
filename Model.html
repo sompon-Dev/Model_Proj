@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>อธิบายโมเดลค้นหาเพลง LyriSeek</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #2563eb;
+    --warn-bg: #fef3c7;
+    --warn-line: #d97706;
+    --info-bg: #e0f2fe;
+    --info-line: #0284c7;
+    --svg-soft: #cbd5e1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216;
+      --card: #171b21;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --line: #2a3038;
+      --accent: #60a5fa;
+      --warn-bg: #3a2e12;
+      --warn-line: #d97706;
+      --info-bg: #0c2a3a;
+      --info-line: #38bdf8;
+      --svg-soft: #475569;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Tahoma, "Noto Sans Thai", sans-serif;
+    line-height: 1.7;
+  }
+  header, main { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 32px; }
+  h1 { margin: 0 0 4px; font-size: 1.9rem; }
+  h2 { margin: 0 0 4px; font-size: 1.35rem; }
+  h3 { margin: 18px 0 4px; font-size: 1.05rem; }
+  p { margin: 6px 0; }
+  .sub { color: var(--muted); margin-bottom: 16px; }
+
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    margin-top: 16px;
+  }
+  nav .inner {
+    max-width: 1100px; margin: 0 auto; padding: 8px 16px;
+    display: flex; gap: 8px; overflow-x: auto; white-space: nowrap;
+  }
+  nav a {
+    color: var(--text); text-decoration: none; font-size: .9rem;
+    padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--card);
+  }
+  nav a:hover { border-color: var(--accent); color: var(--accent); }
+
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+  }
+  .num {
+    display: inline-block; min-width: 28px; height: 28px; line-height: 28px;
+    text-align: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: .95rem; margin-right: 8px;
+  }
+  .tools { display: flex; gap: 6px; align-items: center; margin: 12px 0 6px; color: var(--muted); font-size: .85rem; }
+  .tools button {
+    border: 1px solid var(--line); background: var(--bg); color: var(--text);
+    border-radius: 6px; padding: 2px 10px; cursor: pointer; font-size: .9rem;
+  }
+  .tools button:hover { border-color: var(--accent); }
+  .box {
+    overflow: auto; border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; background: #ffffff; color: #1f2937;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .box { background: #12161b; color: #e5e7eb; }
+  }
+  .box svg { display: block; margin: 0 auto; height: auto; }
+  pre.mermaid { visibility: hidden; margin: 0; }
+  pre.mermaid[data-processed] { visibility: visible; }
+
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  code {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: .9em;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 10px 0 4px; font-size: .9rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 16px; height: 16px; border-radius: 4px; border: 2px solid; display: inline-block; }
+  .sw.srv  { background: #dcfce7; border-color: #16a34a; }
+  .sw.mdl  { background: #fce7f3; border-color: #db2777; }
+  .sw.db   { background: #ede9fe; border-color: #7c3aed; }
+  .sw.warn { background: #fef3c7; border-color: #d97706; }
+  .sw.err  { background: #fee2e2; border-color: #dc2626; }
+
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--bg); }
+  .tableWrap { overflow-x: auto; }
+  .note {
+    background: var(--warn-bg); border-left: 4px solid var(--warn-line);
+    padding: 8px 12px; border-radius: 6px; margin: 12px 0;
+  }
+  .info {
+    background: var(--info-bg); border-left: 4px solid var(--info-line);
+    padding: 8px 12px; border-radius: 6px; margin: 12px 0;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+  .term { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; background: var(--bg); }
+  .term b { display: block; margin-bottom: 2px; }
+  .term span { color: var(--muted); font-size: .92rem; }
+  .ex { font-family: Consolas, "Courier New", monospace; font-size: .9rem; }
+  #fail { display: none; }
+  footer { max-width: 1100px; margin: 0 auto; padding: 8px 16px 40px; color: var(--muted); font-size: .85rem; }
+
+  /* ภาพประกอบ SVG */
+  .svg-ring  { fill: none; stroke: var(--svg-soft); stroke-width: 1.5; }
+  .svg-axis  { stroke: var(--svg-soft); stroke-width: 1; stroke-dasharray: 3 4; }
+  .svg-near  { stroke: #16a34a; stroke-width: 2; }
+  .svg-far   { stroke: var(--svg-soft); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  .svg-query { stroke: #db2777; stroke-width: 2.5; }
+  .svg-txt   { fill: currentColor; font-size: 13px; font-family: "Segoe UI", Tahoma, "Noto Sans Thai", sans-serif; }
+  .svg-dot   { fill: #7c3aed; }
+  .svg-dotn  { fill: #16a34a; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>อธิบายโมเดลค้นหาเพลง ตั้งแต่สร้างจนถึงค้นหา</h1>
+  <p class="sub">เนื้อหาและ flowchart ของส่วน "โมเดล" ใน LyriSeek: ข้อความเนื้อเพลงกลายเป็นตัวเลข (vector) ได้อย่างไร และระบบใช้ตัวเลขนั้นหาเพลงที่คล้ายกันได้อย่างไร</p>
+
+  <div class="note" id="fail">
+    ⚠️ โหลดตัวสร้างผัง (Mermaid) ไม่ได้ ไฟล์นี้ต้องต่ออินเทอร์เน็ตตอนเปิดครั้งแรก กรุณาตรวจสอบการเชื่อมต่อแล้วรีเฟรชหน้านี้
+  </div>
+
+  <div class="info">
+    <b>สรุปสั้นที่สุด:</b> เราไม่ได้เทรนโมเดลเอง แต่ใช้โมเดลสำเร็จรูป <code>intfloat/multilingual-e5-base</code> แปลง "เนื้อเพลงทุกเพลง" เป็นชุดตัวเลข 768 ค่า เก็บไว้ในไฟล์ (นี่คือ <b>index</b>) เมื่อผู้ใช้ค้นหา จะแปลง "คำค้น" เป็นชุดตัวเลขด้วยโมเดลตัวเดียวกัน แล้วดูว่าเพลงไหนมีตัวเลขใกล้เคียงคำค้นมากที่สุด
+  </div>
+
+  <div class="legend">
+    <span><i class="sw srv"></i> ขั้นตอนของโปรแกรม</span>
+    <span><i class="sw mdl"></i> ทำงานอยู่ข้างในโมเดล</span>
+    <span><i class="sw db"></i> ข้อมูล / ไฟล์</span>
+    <span><i class="sw warn"></i> ข้อสังเกต</span>
+    <span><i class="sw err"></i> Error / ข้อจำกัด</span>
+  </div>
+</header>
+
+<nav>
+  <div class="inner">
+    <a href="#s1">1 ภาพรวม</a>
+    <a href="#s2">2 คำศัพท์พื้นฐาน</a>
+    <a href="#s3">3 ข้างในโมเดล</a>
+    <a href="#s4">4 สร้าง Index</a>
+    <a href="#s5">5 ค้นหา</a>
+    <a href="#s6">6 เพิ่มเพลงใหม่</a>
+    <a href="#s7">7 ตัวเลขจริง</a>
+    <a href="#s8">8 ข้อสังเกต</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============ 1 ภาพรวม ============ -->
+<section id="s1">
+  <h2><span class="num">1</span>ภาพรวม: 3 ระยะ</h2>
+  <p>ทั้งหมดแบ่งเป็น 3 ระยะ สองระยะแรก <b>ทำครั้งเดียวล่วงหน้า</b> ระยะที่สามทำ <b>ทุกครั้งที่ผู้ใช้ค้นหา</b></p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TB
+  subgraph A["ระยะ A: เตรียมข้อความ (Clean.py และ MergeCSV.py)"]
+    a1["เนื้อเพลงดิบ .txt<br/>79 เพลง 17 ศิลปิน"] --> a2["ทำความสะอาด<br/>+ ตัดคำภาษาไทย"]
+    a2 --> a3["dataset.csv<br/>lyrics_tokens, song_name, artist"]
+  end
+
+  subgraph B["ระยะ B: สร้าง Index (Buildindex.py) ทำครั้งเดียว"]
+    b1["โหลดโมเดล e5 สำเร็จรูป<br/>ไม่ได้เทรนเอง"] --> b2["แปลงเนื้อเพลงทุกเพลง<br/>เป็น vector 768 ค่า"]
+    b2 --> b3["Normalize ให้ความยาวเท่ากับ 1"]
+    b3 --> b4["บันทึกลงไฟล์<br/>songs_embeddings.pt + songs_metadata.pkl"]
+  end
+
+  subgraph C["ระยะ C: ค้นหา (Search.py ที่ API.py เรียก) ทำทุกครั้งที่ผู้ใช้ค้นหา"]
+    c1["คำค้นจากผู้ใช้"] --> c2["แปลงเป็น vector 768 ค่า<br/>ด้วยโมเดลตัวเดียวกัน"]
+    c2 --> c3["เทียบกับ vector ของทุกเพลง<br/>(cosine similarity)"]
+    c3 --> c4["เรียงคะแนน<br/>เลือก Top-K"]
+    c4 --> c5["ส่งกลับ: ชื่อเพลง, ศิลปิน, score"]
+  end
+
+  a3 --> b1
+  b4 -. "โหลดเข้าหน่วยความจำ<br/>ตอน API.py เริ่มทำงาน" .-> c3
+  b1 -. "ต้องเป็นโมเดลตัวเดียวกัน<br/>ไม่งั้น vector เทียบกันไม่ได้" .-> c2
+
+  class a1,a3,b4 db
+  class a2,b3,c1,c3,c4,c5 srv
+  class b1,b2,c2 mdl
+</pre>
+  </div>
+  <ul>
+    <li>ระยะ B และ C ใช้ <b>โมเดลตัวเดียวกัน</b> เพราะ vector จากโมเดลคนละตัวเทียบกันไม่ได้ (เหมือนวัดระยะด้วยไม้บรรทัดคนละหน่วย)</li>
+    <li>ระยะ A รายละเอียดอยู่ใน <code>Flowchart.html</code> ส่วนที่ 6 ไฟล์นี้เน้นที่ระยะ B และ C</li>
+  </ul>
+</section>
+
+<!-- ============ 2 คำศัพท์ ============ -->
+<section id="s2">
+  <h2><span class="num">2</span>คำศัพท์พื้นฐาน (อ่านก่อนจะเข้าใจง่ายขึ้น)</h2>
+  <div class="grid">
+    <div class="term"><b>Embedding / Vector</b><span>ชุดตัวเลขที่ "แทนความหมาย" ของข้อความ ในระบบนี้ 1 ข้อความ = ตัวเลข 768 ค่า ข้อความที่ความหมายใกล้กันจะได้ตัวเลขใกล้กัน</span></div>
+    <div class="term"><b>โมเดล (Model)</b><span>โปรแกรมที่เรียนรู้มาแล้วจากข้อความจำนวนมหาศาล ทำหน้าที่แปลงข้อความเป็น vector เราใช้ตัวสำเร็จรูป ไม่ได้สอนเอง</span></div>
+    <div class="term"><b>Index</b><span>ตารางที่เก็บ vector ของทุกเพลงไว้ล่วงหน้า ตอนค้นหาจะได้ไม่ต้องแปลงเนื้อเพลงใหม่ทุกครั้ง (ไฟล์ <code>songs_embeddings.pt</code>)</span></div>
+    <div class="term"><b>Token</b><span>ชิ้นส่วนย่อยของข้อความที่โมเดลอ่าน อาจเป็นคำหรือส่วนของคำ โมเดลรับได้สูงสุด 512 token ต่อครั้ง</span></div>
+    <div class="term"><b>Normalize</b><span>ปรับ vector ให้ "ความยาวเท่ากับ 1" เพื่อเทียบกันเฉพาะ "ทิศทาง" (ความหมาย) ไม่สนว่าข้อความยาวหรือสั้น</span></div>
+    <div class="term"><b>Cosine Similarity</b><span>คะแนนความคล้ายของ vector สองอัน วัดจากมุมระหว่างกัน ยิ่งใกล้ 1 ยิ่งคล้าย เมื่อ vector ยาว 1 ทั้งคู่ คะแนนนี้เท่ากับ dot product</span></div>
+    <div class="term"><b>Top-K</b><span>เลือกเพลงที่คะแนนสูงสุด K อันดับแรก ค่าปัจจุบันใน <code>Search.py</code> คือ <code>top_k=11</code></span></div>
+    <div class="term"><b>Dot product / matmul</b><span>คูณตัวเลขแต่ละคู่แล้วรวมกัน <code>matmul</code> ทำแบบนี้กับทุกเพลงพร้อมกันในคำสั่งเดียว จึงเร็ว</span></div>
+  </div>
+
+  <h3>ภาพประกอบ: ทำไมเทียบด้วยมุมจึงหาเพลงที่คล้ายได้</h3>
+  <p>เมื่อ normalize แล้ว ทุก vector ยาวเท่ากัน จึงเรียงตัวอยู่บนวงกลม (ในความจริงเป็นทรงกลมใน 768 มิติ ภาพนี้ย่อเหลือ 2 มิติให้เห็นง่าย) <b>ยิ่งมุมระหว่างสองจุดแคบ ยิ่งคล้ายกัน</b></p>
+  <div class="box">
+    <svg viewBox="0 0 520 300" width="520" role="img" aria-label="ภาพประกอบ vector บนวงกลม คำค้นอยู่ใกล้เพลง A และ B มากที่สุด">
+      <circle class="svg-ring" cx="260" cy="150" r="110"/>
+      <line class="svg-axis" x1="130" y1="150" x2="390" y2="150"/>
+      <line class="svg-axis" x1="260" y1="30" x2="260" y2="270"/>
+      <!-- เส้นจากศูนย์กลางไปยังแต่ละจุด -->
+      <line class="svg-far"  x1="260" y1="150" x2="164.7" y2="95"/>
+      <line class="svg-far"  x1="260" y1="150" x2="169.9" y2="213.1"/>
+      <line class="svg-far"  x1="260" y1="150" x2="344.3" y2="220.7"/>
+      <line class="svg-near" x1="260" y1="150" x2="357.1" y2="98.4"/>
+      <line class="svg-near" x1="260" y1="150" x2="306.5" y2="50.3"/>
+      <line class="svg-query" x1="260" y1="150" x2="344.3" y2="79.3"/>
+      <!-- จุดเพลง -->
+      <circle class="svg-dotn" cx="357.1" cy="98.4" r="6"/>
+      <circle class="svg-dotn" cx="306.5" cy="50.3" r="6"/>
+      <circle class="svg-dot"  cx="164.7" cy="95"   r="6"/>
+      <circle class="svg-dot"  cx="169.9" cy="213.1" r="6"/>
+      <circle class="svg-dot"  cx="344.3" cy="220.7" r="6"/>
+      <circle cx="260" cy="150" r="3" fill="currentColor"/>
+      <!-- คำค้น -->
+      <text x="344.3" y="72" text-anchor="middle" font-size="22" fill="#db2777">★</text>
+      <!-- ป้ายชื่อ -->
+      <text class="svg-txt" x="372" y="104" fill="currentColor">เพลง A</text>
+      <text class="svg-txt" x="292" y="40" fill="currentColor">เพลง B</text>
+      <text class="svg-txt" x="108" y="90"  fill="currentColor">เพลง C</text>
+      <text class="svg-txt" x="112" y="232" fill="currentColor">เพลง D</text>
+      <text class="svg-txt" x="356" y="238" fill="currentColor">เพลง E</text>
+      <text class="svg-txt" x="356" y="66" fill="#db2777">คำค้น</text>
+      <text class="svg-txt" x="14" y="24" fill="currentColor">เส้นเขียว = เพลงที่คล้ายคำค้น (มุมแคบ)</text>
+      <text class="svg-txt" x="14" y="44" fill="currentColor">เส้นประเทา = เพลงที่ไม่คล้าย (มุมกว้าง)</text>
+    </svg>
+  </div>
+  <p>ในภาพ: เพลง A และ B อยู่ใกล้ ★ (มุมแคบ) จึงได้คะแนนสูง เพลง C, D, E อยู่ไกล (มุมกว้าง) คะแนนต่ำ ตำแหน่งในภาพเป็นตัวอย่างสมมติ ไม่ใช่ข้อมูลจริง</p>
+</section>
+
+<!-- ============ 3 ข้างในโมเดล ============ -->
+<section id="s3">
+  <h2><span class="num">3</span>ข้างในโมเดล: ข้อความกลายเป็น vector ได้อย่างไร</h2>
+  <p>ทุกครั้งที่เรียก <code>model.encode(...)</code> (ทั้งตอนสร้าง index และตอนค้นหา) ข้อความจะผ่านขั้นตอนเหล่านี้ตามลำดับ</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  t0(["ข้อความเข้า<br/>เนื้อเพลง หรือ คำค้น"]) --> t1["① Tokenizer (SentencePiece)<br/>ตัดข้อความเป็น token<br/>ฉัน รัก เธอ กลายเป็น ▁ฉัน ▁ รัก ▁เธอ"]
+  t1 --> t2{"ยาวเกิน 512 token?"}
+  t2 -- "ใช่" --> t3["② ตัดส่วนท้ายที่เกินทิ้ง<br/>โมเดลไม่เห็นส่วนนั้นเลย"]
+  t2 -- "ไม่" --> t4["② ใช้ข้อความทั้งหมด"]
+  t3 --> t5["③ แปลง token เป็นเลข id<br/>จากคลังคำ 250,002 รายการ"]
+  t4 --> t5
+  t5 --> t6["④ Transformer 12 ชั้น (XLM-RoBERTa)<br/>แต่ละ token มอง token อื่นในข้อความ (attention)<br/>ได้ vector 768 ค่า ต่อ 1 token"]
+  t6 --> t7["⑤ Mean Pooling<br/>เฉลี่ย vector ของทุก token<br/>เหลือ 1 vector ต่อข้อความ"]
+  t7 --> t8["⑥ Normalize (L2)<br/>ปรับความยาวให้เท่ากับ 1"]
+  t8 --> t9(["ออก: vector 768 ค่า<br/>แทนความหมายของทั้งข้อความ"])
+
+  class t0,t9 db
+  class t1,t4,t5,t6,t7,t8 mdl
+  class t2 srv
+  class t3 err
+</pre>
+  </div>
+  <div class="tableWrap">
+  <table>
+    <thead><tr><th>ขั้น</th><th>ทำอะไร</th><th>ตัวอย่างขนาดข้อมูล</th></tr></thead>
+    <tbody>
+      <tr><td>①-③</td><td>ตัดข้อความเป็น token แล้วแปลงเป็นตัวเลข id</td><td>เพลงหนึ่งเพลง ≈ 227-888 token (ในข้อมูลของเรา)</td></tr>
+      <tr><td>④</td><td>Transformer ให้แต่ละ token มี vector ที่ "รู้บริบท" ของคำรอบข้าง (คำว่า "ใจ" ในประโยคต่างกันจะได้ vector ต่างกัน)</td><td>จำนวน token × 768</td></tr>
+      <tr><td>⑤</td><td>เฉลี่ยทุก token ให้เหลือ vector เดียว</td><td>768 ค่า</td></tr>
+      <tr><td>⑥</td><td>ปรับความยาวเป็น 1</td><td>768 ค่า (ยาว 1)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="info">
+    ข้อ ①-⑥ ตรงกับโมดูลในโมเดลที่ตรวจจากเครื่องจริง: <code>Transformer → Pooling (mean) → Normalize</code> ดังนั้นโมเดลนี้ normalize ให้อยู่แล้วในตัว
+  </div>
+</section>
+
+<!-- ============ 4 สร้าง Index ============ -->
+<section id="s4">
+  <h2><span class="num">4</span>ระยะ B: สร้าง Index (<code>Buildindex.py</code>)</h2>
+  <p>"การสร้างโมเดล" ในระบบนี้จึงหมายถึง <b>การสร้าง index</b> คือแปลงเนื้อเพลงทุกเพลงเป็น vector เก็บไว้ ทำครั้งเดียว (และทำใหม่เมื่อมีเพลงเพิ่ม)</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  s1(["รัน Buildindex.py"]) --> s2["โหลดโมเดล multilingual-e5-base<br/>ครั้งแรกต้องดาวน์โหลด แล้วเก็บไว้ในเครื่อง"]
+  s2 --> s3["อ่าน dataset.csv ด้วย pandas"]
+  s3 --> s4["แยกข้อมูลเป็น 2 ส่วน<br/>lyrics_list = คอลัมน์ lyrics_tokens<br/>metadata = song_name + artist"]
+  s4 --> s5["model.encode(lyrics_list)<br/>เนื้อเพลงทุกเพลงผ่านขั้นตอนในหัวข้อ 3"]
+  s5 --> s6["ได้ Tensor ขนาด 79 × 768<br/>แถว = 1 เพลง<br/>คอลัมน์ = 768 ค่าที่แทนความหมาย"]
+  s6 --> s7["L2 normalize ทีละแถว<br/>โมเดลทำไว้แล้ว ทำซ้ำไม่เสียหาย"]
+  s7 --> s8["torch.save<br/>songs_embeddings.pt"]
+  s4 --> s9["pickle.dump<br/>songs_metadata.pkl"]
+  s8 --> s10(["เสร็จ: ได้ index พร้อมใช้"])
+  s9 --> s10
+
+  class s1,s10 srv
+  class s2,s5 mdl
+  class s3,s4,s6,s7 srv
+  class s8,s9 db
+</pre>
+  </div>
+
+  <h3>ไฟล์ที่ได้ และความสัมพันธ์ระหว่างกัน</h3>
+  <div class="tableWrap">
+  <table>
+    <thead><tr><th>ไฟล์</th><th>เก็บอะไร</th><th>ขนาดจริง</th></tr></thead>
+    <tbody>
+      <tr><td><code>songs_embeddings.pt</code></td><td>vector ของทุกเพลง (Tensor)</td><td>79 × 768 ตัวเลข ชนิด float32</td></tr>
+      <tr><td><code>songs_metadata.pkl</code></td><td>ชื่อเพลงและศิลปินของแต่ละเพลง (list ของ dict)</td><td>79 รายการ</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note">
+    <b>จุดสำคัญ:</b> แถวที่ <i>i</i> ใน <code>.pt</code> ตรงกับรายการที่ <i>i</i> ใน <code>.pkl</code> เสมอ ตอนค้นหา ระบบรู้แค่ "แถวที่เท่าไรคะแนนสูง" แล้วใช้เลขแถวนั้นไปหยิบชื่อเพลงจาก metadata ถ้าสองไฟล์สร้างไม่พร้อมกัน ชื่อเพลงจะไม่ตรงกับ vector
+  </div>
+</section>
+
+<!-- ============ 5 ค้นหา ============ -->
+<section id="s5">
+  <h2><span class="num">5</span>ระยะ C: ค้นหา (<code>Search.py</code>)</h2>
+  <p>แบ่งเป็น 2 จังหวะ: <b>ตอน API.py เริ่มทำงาน</b> (โหลดของเข้าหน่วยความจำ ครั้งเดียว) และ <b>ทุกครั้งที่มีคำค้น</b></p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  subgraph BOOT["จังหวะที่ 1: ตอน API.py เริ่มทำงาน (ครั้งเดียว ทำให้เริ่มช้า)"]
+    k0(["API.py import Search.py"]) --> k2["torch.load songs_embeddings.pt<br/>ได้ embeddings_norm ขนาด 79 × 768"]
+    k0 --> k3["pickle.load songs_metadata.pkl<br/>ได้ metadata 79 รายการ"]
+    k0 --> k4["โหลดโมเดล e5 เข้าหน่วยความจำ<br/>278 ล้านพารามิเตอร์"]
+    k2 --> k5(["พร้อมรับคำค้น"])
+    k3 --> k5
+    k4 --> k5
+  end
+
+  subgraph RUN["จังหวะที่ 2: ทุกครั้งที่ผู้ใช้ค้นหา — search(query_text, top_k)"]
+    q0(["ได้รับ query_text"]) --> q1["① model.encode(query_text)<br/>ได้ vector 768 ค่า"]
+    q1 --> q2["② normalize (p=2)<br/>ปรับความยาวเป็น 1"]
+    q2 --> q3["③ scores = matmul(embeddings_norm, query_vector)<br/>(79 × 768) คูณ (768) ได้คะแนน 79 ค่า<br/>1 คะแนนต่อ 1 เพลง"]
+    q3 --> q4["④ top_k = min(top_k, จำนวนเพลง)<br/>กัน error กรณีมีเพลงน้อยกว่าที่ขอ"]
+    q4 --> q5["⑤ torch.topk<br/>เลือกคะแนนสูงสุด top_k อันดับ<br/>ได้ คะแนน + เลขแถว"]
+    q5 --> q6["⑥ วนทีละอันดับ<br/>ใช้เลขแถวไปหยิบ metadata<br/>ประกอบ song_name, artist, score"]
+    q6 --> q7(["คืนลิสต์ผลลัพธ์ให้ API.py"])
+  end
+
+  k5 --> q0
+
+  class k0,k5,q0,q7,q4,q6 srv
+  class k2,k3 db
+  class k4,q1 mdl
+  class q2,q3,q5 srv
+</pre>
+  </div>
+
+  <h3>ตัวอย่างสมมติ (ตัวเลขไม่ใช่ข้อมูลจริง)</h3>
+  <p>ค้นด้วยคำว่า <span class="ex">"คิดถึงเธอทุกคืน"</span> คะแนนที่ได้จากขั้น ③ และผลจากขั้น ⑤-⑥ อาจเป็นแบบนี้:</p>
+  <div class="tableWrap">
+  <table>
+    <thead><tr><th>แถวใน index</th><th>เพลง (จาก metadata)</th><th>score (ขั้น ③)</th><th>อยู่ใน Top-K?</th></tr></thead>
+    <tbody>
+      <tr><td>17</td><td>เพลง P</td><td>0.86</td><td>อันดับ 1</td></tr>
+      <tr><td>52</td><td>เพลง Q</td><td>0.84</td><td>อันดับ 2</td></tr>
+      <tr><td>3</td><td>เพลง R</td><td>0.81</td><td>อันดับ 3</td></tr>
+      <tr><td>...</td><td>...</td><td>...</td><td>ไล่ไปจนครบ top_k</td></tr>
+      <tr><td>40</td><td>เพลง Z</td><td>0.72</td><td>ไม่ติด</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>ผลที่ส่งกลับเป็น <span class="ex">[{"song_name": "เพลง P", "artist": "...", "score": 0.86}, ...]</span> และแอปแสดงเป็นรายการเรียงอันดับ</p>
+  <ul>
+    <li><b>score</b> ยิ่งใกล้ 1 ยิ่งคล้ายกับคำค้นมาก</li>
+    <li>ระบบเทียบกับ <b>ทุกเพลง</b> ทุกครั้ง (ไม่ได้เลือกเฉพาะบางเพลง) ด้วยข้อมูลระดับนี้ คำนวณเสร็จเร็วมาก ตัวที่ใช้เวลาจริงคือขั้น ① แปลงคำค้นด้วยโมเดล</li>
+    <li>ค้นหาแบบนี้เข้าใจ "ความหมาย" ไม่ใช่ตรงตัวอักษร คำค้นที่ใช้คำต่างจากเนื้อเพลงแต่ความหมายใกล้กัน ก็ยังเจอได้</li>
+  </ul>
+</section>
+
+<!-- ============ 6 เพิ่มเพลงใหม่ ============ -->
+<section id="s6">
+  <h2><span class="num">6</span>เพิ่มเพลงใหม่เข้าระบบต้องทำอะไร</h2>
+  <p>index ไม่อัปเดตเอง เพลงใหม่ค้นเจอได้ก็ต่อเมื่อสร้าง index ใหม่ทั้งชุดแล้วให้ API.py โหลดใหม่</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  n1(["ต้องการเพิ่มเพลงใหม่"]) --> n2["วางไฟล์ .txt ที่<br/>Ver.3/Dataset/ชื่อศิลปิน/ชื่อเพลง.txt"]
+  n2 --> n3["รัน Clean.py<br/>ได้ไฟล์ใน CleanedData"]
+  n3 --> n4["รัน MergeCSV.py<br/>ได้ dataset.csv ใหม่"]
+  n4 --> n5["รัน Buildindex.py<br/>ได้ .pt และ .pkl ใหม่ (แทนของเดิม)"]
+  n5 --> n6["ปิดแล้วรัน API.py ใหม่ (รัน Start.py ซ้ำ)<br/>เพราะ Search.py โหลดไฟล์ตอนเริ่มเท่านั้น"]
+  n6 --> n7(["ค้นเจอเพลงใหม่"])
+
+  class n1,n7 srv
+  class n2,n3,n4,n5 srv
+  class n6 warn
+</pre>
+  </div>
+  <div class="note">
+    ถ้ารัน Buildindex.py แล้วไม่รีสตาร์ท API.py โปรแกรมที่รันอยู่ยังใช้ index เก่าในหน่วยความจำ จึงยังไม่เห็นเพลงใหม่
+  </div>
+</section>
+
+<!-- ============ 7 ตัวเลขจริง ============ -->
+<section id="s7">
+  <h2><span class="num">7</span>ตัวเลขจริงที่ตรวจจากเครื่องนี้</h2>
+  <p>ข้อมูลในตารางนี้ตรวจจากไฟล์และโมเดลในโฟลเดอร์ Thesis จริง ไม่ได้ประมาณการ</p>
+  <div class="tableWrap">
+  <table>
+    <thead><tr><th>หัวข้อ</th><th>ค่า</th></tr></thead>
+    <tbody>
+      <tr><td>จำนวนเพลงใน index</td><td>79 เพลง จาก 17 ศิลปิน</td></tr>
+      <tr><td>ขนาด index</td><td>79 × 768 ชนิด float32 (ประมาณ 243 KB)</td></tr>
+      <tr><td>ความยาวของ vector ทุกแถว</td><td>ประมาณ 1.0 (normalize แล้ว)</td></tr>
+      <tr><td>โมเดล</td><td><code>intfloat/multilingual-e5-base</code> ชนิด XLM-RoBERTa</td></tr>
+      <tr><td>โครงสร้างโมเดล</td><td>12 ชั้น, 12 attention heads, ขนาดซ่อน 768, คลังคำ 250,002, ประมาณ 278 ล้านพารามิเตอร์</td></tr>
+      <tr><td>โมดูลที่ SentenceTransformer ต่อไว้</td><td>Transformer → Pooling (mean) → Normalize</td></tr>
+      <tr><td>ความยาวสูงสุดที่โมเดลอ่าน</td><td>512 token</td></tr>
+      <tr><td>ความยาวเนื้อเพลง (จำนวน token)</td><td>ต่ำสุด 227, กลาง 467, สูงสุด 888</td></tr>
+      <tr><td>เพลงที่ยาวเกิน 512 token</td><td><b>22 จาก 79 เพลง (ประมาณ 28%)</b></td></tr>
+      <tr><td>Top-K ปัจจุบัน</td><td><code>top_k=11</code> ใน <code>Search.py</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 8 ข้อสังเกต ============ -->
+<section id="s8">
+  <h2><span class="num">8</span>ข้อสังเกตที่อาจกระทบคุณภาพผลการค้นหา</h2>
+  <p>ข้อเหล่านี้ยังไม่ได้ทดสอบว่ากระทบผลจริงมากแค่ไหน แต่เป็นจุดที่ควรรู้ และเป็นแนวทางปรับปรุง</p>
+  <ol>
+    <li><b>เนื้อเพลง 22 จาก 79 เพลงถูกตัดท้าย</b> โมเดลอ่านได้ไม่เกิน 512 token ส่วนที่เกินไม่ถูกนำมาคิด vector ของเพลงเหล่านี้จึงแทนความหมายเฉพาะช่วงต้นเพลง คำค้นที่ตรงกับท่อนท้ายอาจไม่เจอ</li>
+    <li><b>ไม่ได้ใส่ prefix ของโมเดล E5</b> ตามคู่มือของโมเดลตระกูล E5 ข้อความฝั่งคำค้นควรขึ้นต้นด้วย <code>"query: "</code> และฝั่งเนื้อเพลงขึ้นต้นด้วย <code>"passage: "</code> ตอนนี้ทั้ง <code>Buildindex.py</code> และ <code>Search.py</code> ส่งข้อความเปล่าเข้าไป</li>
+    <li><b>รูปแบบข้อความสองฝั่งไม่เหมือนกัน</b> เนื้อเพลงใน index ผ่านการตัดคำ (มีเว้นวรรคระหว่างคำ) แต่คำค้นส่งเข้าไปเป็นข้อความดิบ ตัวอย่างจากเครื่องนี้: <span class="ex">"ฉัน รัก เธอ"</span> ถูกตัดเป็น token <span class="ex">▁ฉัน ▁ รัก ▁เธอ</span> ซึ่งมี token เว้นวรรค (<span class="ex">▁</span>) เพิ่มเข้ามา ส่วนคำค้นดิบจะไม่มี</li>
+    <li><b>ยังไม่ได้ใช้ genres / moods กรองผล</b> แอปส่งสองค่านี้มา แต่ API.py ยังไม่ได้นำไปใช้</li>
+    <li><b>ไม่ได้ fine-tune โมเดล</b> ใช้โมเดลสำเร็จรูปตามที่มี ถ้าอยากให้เข้าใจเนื้อเพลงไทยดีขึ้น มีทางเลือกคือเปลี่ยนโมเดล (เช่น BGE-M3 ที่รับข้อความยาวได้ 8192 token) หรือแบ่งเพลงเป็นท่อนแล้วสร้าง vector ทีละท่อน</li>
+    <li><b>Index เป็นไฟล์นิ่ง</b> เพิ่มเพลงต้องสร้างใหม่ทั้งชุดและรีสตาร์ท API.py (ดูหัวข้อ 6)</li>
+  </ol>
+  <div class="info">
+    <b>ทำไมข้อ 1-3 สำคัญ:</b> ทั้งสามข้อเป็นการปรับที่ไม่ต้องเปลี่ยนโมเดลเลย เสียแค่สร้าง index ใหม่ ถ้าอยากทดสอบว่าข้อไหนช่วยจริง ควรเตรียมคำค้นสัก 20-30 ข้อที่รู้คำตอบ แล้ววัดว่าเพลงที่ถูกอยู่ใน Top-K กี่ครั้ง ก่อนและหลังแก้
+  </div>
+</section>
+
+</main>
+
+<footer>อ้างอิงจาก: Ver.3/Clean.py, Ver.3/MergeCSV.py, Ver.3/Buildindex.py, Ver.3/Search.py, Ver.3/API.py และตัวเลขที่ตรวจจากไฟล์ index กับโมเดลในเครื่อง</footer>
+
+<script type="module">
+  const CLASSDEFS = [
+    'classDef srv  fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#0f172a',
+    'classDef mdl  fill:#fce7f3,stroke:#db2777,stroke-width:1.5px,color:#0f172a',
+    'classDef db   fill:#ede9fe,stroke:#7c3aed,stroke-width:1.5px,color:#0f172a',
+    'classDef warn fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#0f172a',
+    'classDef err  fill:#fee2e2,stroke:#dc2626,stroke-width:1.5px,color:#0f172a'
+  ].join('\n');
+
+  try {
+    const mod = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+    const mermaid = mod.default;
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    // เติมสีมาตรฐานท้ายทุกผัง
+    document.querySelectorAll('pre.mermaid').forEach((el) => {
+      el.innerHTML = el.innerHTML.trim() + '\n' + CLASSDEFS;
+    });
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: dark ? 'dark' : 'default',
+      securityLevel: 'loose',
+      fontFamily: '"Segoe UI", Tahoma, "Noto Sans Thai", sans-serif',
+      flowchart: { htmlLabels: true, curve: 'basis', useMaxWidth: true, padding: 12, nodeSpacing: 40, rankSpacing: 46 }
+    });
+    await mermaid.run({ querySelector: 'pre.mermaid' });
+
+    // ปุ่มซูมของแต่ละผัง
+    document.querySelectorAll('section').forEach((sec) => {
+      const svg = sec.querySelector('.box pre.mermaid svg');
+      if (!svg) return;
+      let zoom = 1;
+      sec.querySelectorAll('.tools button').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          zoom = Math.min(3, Math.max(0.6, zoom + (btn.dataset.z === '+' ? 0.25 : -0.25)));
+          svg.style.maxWidth = 'none';
+          svg.style.width = (zoom * 100) + '%';
+        });
+      });
+    });
+  } catch (err) {
+    console.error(err);
+    document.getElementById('fail').style.display = 'block';
+    document.querySelectorAll('pre.mermaid').forEach((el) => { el.style.visibility = 'visible'; });
+  }
+</script>
+</body>
+</html>

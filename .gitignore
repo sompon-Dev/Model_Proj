@@ -1,0 +1,33 @@
+# ─── secrets ───
+.env
+*.env
+!.env.example
+
+# ─── Python ───
+__pycache__/
+*.pyc
+*.pyo
+
+# ─── Node / React Native ───
+node_modules/
+.expo/
+npm-debug.log*
+
+# ─── โมเดล/ดัชนีที่สร้างใหม่ได้จาก Buildindex.py (ไม่ใช่ source code) ───
+Ver.3/songs_embeddings.pt
+Ver.3/songs_metadata.pkl
+Ver.4/chunks_embeddings.pt
+Ver.4/chunks_metadata.pkl
+
+# ─── ไฟล์ข้อมูล/ผลลัพธ์ขนาดใหญ่ที่สร้างจากสคริปต์ใน Ver.4/InputData (ไม่ใช่ source code) ───
+Ver.4/InputData/thai_songs_30000_merged.xls
+Ver.4/InputData/songs_enriched.csv
+Ver.4/InputData/songs_failed.csv
+Ver.4/InputData/famous.csv
+Ver.4/InputData/nonfamous.csv
+Ver.4/InputData/view_failed.csv
+Ver.4/InputData/*_log*.txt
+
+# ─── OS ───
+.DS_Store
+Thumbs.db

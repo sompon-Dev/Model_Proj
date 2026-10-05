@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flowchart ระบบ LyriSeek</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #2563eb;
+    --warn-bg: #fef3c7;
+    --warn-line: #d97706;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216;
+      --card: #171b21;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --line: #2a3038;
+      --accent: #60a5fa;
+      --warn-bg: #3a2e12;
+      --warn-line: #d97706;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Tahoma, "Noto Sans Thai", sans-serif;
+    line-height: 1.7;
+  }
+  header, main { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 32px; }
+  h1 { margin: 0 0 4px; font-size: 1.9rem; }
+  h2 { margin: 0 0 4px; font-size: 1.35rem; }
+  p { margin: 6px 0; }
+  .sub { color: var(--muted); margin-bottom: 16px; }
+
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    margin-top: 16px;
+  }
+  nav .inner {
+    max-width: 1100px; margin: 0 auto; padding: 8px 16px;
+    display: flex; gap: 8px; overflow-x: auto; white-space: nowrap;
+  }
+  nav a {
+    color: var(--text); text-decoration: none; font-size: .9rem;
+    padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px;
+    background: var(--card);
+  }
+  nav a:hover { border-color: var(--accent); color: var(--accent); }
+
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+  }
+  .num {
+    display: inline-block; min-width: 28px; height: 28px; line-height: 28px;
+    text-align: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: .95rem; margin-right: 8px;
+  }
+  .tools { display: flex; gap: 6px; align-items: center; margin: 12px 0 6px; color: var(--muted); font-size: .85rem; }
+  .tools button {
+    border: 1px solid var(--line); background: var(--bg); color: var(--text);
+    border-radius: 6px; padding: 2px 10px; cursor: pointer; font-size: .9rem;
+  }
+  .tools button:hover { border-color: var(--accent); }
+  .box {
+    overflow: auto; border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; background: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .box { background: #12161b; }
+  }
+  .box svg { display: block; margin: 0 auto; height: auto; }
+  pre.mermaid { visibility: hidden; margin: 0; }
+  pre.mermaid[data-processed] { visibility: visible; }
+
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  code {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: .9em;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 10px 0 4px; font-size: .9rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 16px; height: 16px; border-radius: 4px; border: 2px solid; display: inline-block; }
+  .sw.app  { background: #dbeafe; border-color: #2563eb; }
+  .sw.srv  { background: #dcfce7; border-color: #16a34a; }
+  .sw.db   { background: #ede9fe; border-color: #7c3aed; }
+  .sw.warn { background: #fef3c7; border-color: #d97706; }
+  .sw.err  { background: #fee2e2; border-color: #dc2626; }
+
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--bg); }
+  .tag { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: .8rem; border: 1px solid; white-space: nowrap; }
+  .tag.ok   { color: #15803d; border-color: #15803d; }
+  .tag.part { color: #b45309; border-color: #b45309; }
+  .tag.no   { color: #b91c1c; border-color: #b91c1c; }
+  .note {
+    background: var(--warn-bg); border-left: 4px solid var(--warn-line);
+    padding: 8px 12px; border-radius: 6px; margin: 12px 0;
+  }
+  #fail { display: none; }
+  footer { max-width: 1100px; margin: 0 auto; padding: 8px 16px 40px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Flowchart การทำงานของระบบ LyriSeek</h1>
+  <p class="sub">ผังการทำงานทั้งหมดตั้งแต่เตรียมข้อมูล เปิดระบบ ค้นหาเพลง ไปจนถึงสมัครสมาชิก สร้างจากโค้ดจริงในโฟลเดอร์ Thesis</p>
+
+  <div class="note" id="fail">
+    ⚠️ โหลดตัวสร้างผัง (Mermaid) ไม่ได้ ไฟล์นี้ต้องต่ออินเทอร์เน็ตตอนเปิดครั้งแรก กรุณาตรวจสอบการเชื่อมต่อแล้วรีเฟรชหน้านี้
+  </div>
+
+  <p><b>วิธีอ่านผัง</b> อ่านจากบนลงล่าง (หรือซ้ายไปขวา) ตามลูกศร</p>
+  <ul>
+    <li>วงรี / ทรงแคปซูล = จุดเริ่มหรือจุดจบ</li>
+    <li>กล่องสี่เหลี่ยม = ขั้นตอนที่โปรแกรมทำ</li>
+    <li>ข้าวหลามตัด (◇) = จุดตัดสินใจ มีลูกศรแยกออกไปตามคำตอบ</li>
+    <li>เส้นประ = สิ่งที่เกิดขึ้นควบคู่กัน หรือยังไม่ได้เชื่อมต่อจริง</li>
+    <li>กด <b>+</b> / <b>−</b> เหนือแต่ละผังเพื่อขยายหรือย่อ ผังใหญ่เลื่อนดูได้</li>
+  </ul>
+  <div class="legend">
+    <span><i class="sw app"></i> ฝั่งแอปมือถือ</span>
+    <span><i class="sw srv"></i> ฝั่ง Server / โปรแกรม Python</span>
+    <span><i class="sw db"></i> ฐานข้อมูล / ไฟล์ข้อมูล</span>
+    <span><i class="sw warn"></i> ยังไม่ได้ทำ / ข้อสังเกต</span>
+    <span><i class="sw err"></i> Error</span>
+  </div>
+</header>
+
+<nav>
+  <div class="inner">
+    <a href="#s1">1 ภาพรวม</a>
+    <a href="#s2">2 เริ่มระบบ</a>
+    <a href="#s3">3 ค้นหาเพลง</a>
+    <a href="#s4">4 สมัครสมาชิก</a>
+    <a href="#s5">5 คำขอเข้า main.py</a>
+    <a href="#s6">6 เตรียมข้อมูล</a>
+    <a href="#s7">7 หน้าจอแอป</a>
+    <a href="#s8">8 สถานะปัจจุบัน</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============ 1 ภาพรวม ============ -->
+<section id="s1">
+  <h2><span class="num">1</span>ภาพรวมทั้งระบบ</h2>
+  <p>ระบบมี 3 ส่วนหลัก คือ <b>เตรียมข้อมูล</b> (ทำก่อนครั้งเดียว) <b>Server</b> 2 ตัว และ <b>แอปมือถือ</b> ที่เรียก Server ทั้งสอง</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TB
+  ST["Start.py<br/>ตัวสั่งเปิดทุกอย่าง"]
+
+  subgraph PREP["① เตรียมข้อมูล (รันเองก่อนใช้งาน ทำครั้งเดียว)"]
+    direction LR
+    D1["Dataset<br/>ไฟล์เนื้อเพลง .txt"] --> D2["Clean.py<br/>ทำความสะอาด + ตัดคำ"]
+    D2 --> D3["MergeCSV.py<br/>รวมเป็น dataset.csv"]
+    D3 --> D4["Buildindex.py<br/>แปลงเป็น vector"]
+  end
+  FILES[("songs_embeddings.pt<br/>songs_metadata.pkl")]
+
+  subgraph SRV["② Server ที่ Start.py เปิดให้"]
+    direction TB
+    S1["API.py<br/>พอร์ต 8002<br/>รับคำค้นหา"]
+    S3["Search.py<br/>โมเดล e5 + คำนวณความคล้าย<br/>(อยู่ในโปรเซสเดียวกับ API.py)"]
+    S2["main.py<br/>พอร์ต 8000<br/>จัดการฐานข้อมูล"]
+  end
+  DB[("PostgreSQL<br/>LyricSeekDB")]
+
+  subgraph APP["③ แอปมือถือ (Expo React Native)"]
+    direction TB
+    A1["Homeuser<br/>ค้นหาเพลง"]
+    A2["Register<br/>สมัครสมาชิก"]
+  end
+
+  D4 --> FILES
+  FILES -. "โหลดตอน API.py เริ่มทำงาน" .-> S3
+  S1 <--> S3
+  A1 -- "POST /search" --> S1
+  S1 -- "ผลลัพธ์ 5 เพลง" --> A1
+  A2 -- "POST /users" --> S2
+  S2 <-->|"SQL"| DB
+
+  ST -. "เปิด" .-> SRV
+  ST -. "npm run android<br/>หลัง Server พร้อม" .-> APP
+
+  NOTE["ข้อสังเกต: การค้นหาเพลงไม่ได้ใช้ PostgreSQL<br/>ใช้ไฟล์ .pt / .pkl ที่สร้างไว้ล่วงหน้า"]
+  FILES --- NOTE
+
+  class ST,S1,S2,S3,D2,D3,D4 srv
+  class A1,A2 app
+  class D1,FILES,DB db
+  class NOTE warn
+</pre>
+  </div>
+  <ul>
+    <li><b>Start.py</b> เปิด Server ทั้งสอง แล้วรอให้พร้อมก่อนเปิดแอป</li>
+    <li><b>API.py (8002)</b> ใช้ค้นหาเพลงจากเนื้อร้อง ส่วน <b>main.py (8000)</b> ใช้จัดการข้อมูลในฐานข้อมูล ทั้งสองทำงานคนละหน้าที่ พอร์ตไม่ชนกัน</li>
+    <li>ตอนนี้แอปใช้ API.py กับหน้า Homeuser (ค้นหา) และใช้ main.py กับหน้า Register (สมัครสมาชิก)</li>
+  </ul>
+</section>
+
+<!-- ============ 2 เริ่มระบบ ============ -->
+<section id="s2">
+  <h2><span class="num">2</span>ตอนสั่งรัน <code>python Start.py</code></h2>
+  <p>Start.py เปิด Server สองตัวพร้อมกัน แล้ว <b>วนถามทุก 1 วินาที</b> ว่าแต่ละ port พร้อมหรือยัง เมื่อพร้อมทั้งคู่จึงเปิดแอป</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  S(["เริ่ม: python Start.py"]) --> O1["เปิดหน้าต่าง cmd ที่ 1<br/>โฟลเดอร์ Ver.3<br/>uvicorn API:app --port 8002"]
+  O1 --> O2["เปิดหน้าต่าง cmd ที่ 2<br/>โฟลเดอร์ Backend_Database<br/>uvicorn main:app --reload --port 8000"]
+
+  O1 -. "ทำงานควบคู่" .-> L1["API.py โหลดโมเดลและไฟล์ embeddings<br/>ใช้เวลานานกว่า"]
+  O2 -. "ทำงานควบคู่" .-> L2["main.py เริ่มทำงาน<br/>เร็ว"]
+
+  O2 --> W0["Start.py พิมพ์ Waiting for servers"]
+  W0 --> Q1{"port 8002<br/>เปิดรับการเชื่อมต่อแล้ว?"}
+  Q1 -- "ยัง รอ 1 วินาทีแล้วถามใหม่" --> Q1
+  Q1 -- "ครบ 300 วินาทียังไม่เปิด" --> F["พิมพ์ Server did not start in time<br/>ไม่เปิดแอป"]
+  Q1 -- "เปิดแล้ว" --> Q2{"port 8000<br/>เปิดรับการเชื่อมต่อแล้ว?"}
+  Q2 -- "ยัง รอ 1 วินาทีแล้วถามใหม่" --> Q2
+  Q2 -- "ครบ 300 วินาทียังไม่เปิด" --> F
+  Q2 -- "เปิดแล้ว" --> O3["เปิดหน้าต่าง cmd ที่ 3<br/>โฟลเดอร์ FrontEnd/Frontend<br/>npm run android"]
+  F --> E1(["จบ"])
+  O3 --> E2(["แอปเปิดบน Android"])
+
+  class S,O1,O2,W0,L1,L2 srv
+  class O3,E2 app
+  class F err
+</pre>
+  </div>
+  <ul>
+    <li>ทั้งสองหน้าต่างเปิดด้วย <code>cmd /k</code> จึงไม่ปิดเอง ดู log และ error ได้</li>
+    <li>ที่ต้องรอเพราะ API.py ต้องโหลดโมเดลก่อน ถ้าเปิดแอปเร็วเกินไป คำค้นแรกจะล้มเหลว</li>
+    <li>ถ้า port 8002 ถูกโปรเซสอื่นใช้อยู่แล้ว (เช่น API.py ตัวเก่าที่ยังไม่ปิด) Server ตัวใหม่จะขึ้น error <code>[Errno 10048]</code> แต่ Start.py จะเห็นว่า port "เปิดอยู่" จากตัวเก่า และเปิดแอปต่อไปตามปกติ</li>
+  </ul>
+</section>
+
+<!-- ============ 3 ค้นหาเพลง ============ -->
+<section id="s3">
+  <h2><span class="num">3</span>ผู้ใช้กดค้นหาเพลง (แอป → API.py → Search.py → แอป)</h2>
+  <p>ผังนี้แบ่งเป็นช่องตาม "ใครเป็นคนทำ" ไล่ตามลูกศรจากช่องแอปด้านบน ไปช่อง API ช่อง Search แล้วกลับมาที่แอปด้านล่าง</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  subgraph APP1["📱 แอป Homeuser.js : ส่งคำขอ"]
+    a1(["ผู้ใช้พิมพ์คำค้น แล้วกด Enter<br/>หรือกด apply ใน FILTERS"]) --> a2{"ช่องค้นหาว่าง<br/>และไม่ได้เลือก genre / mood?"}
+    a2 -- "ใช่" --> a3(["ไม่ทำอะไร จบ"])
+    a2 -- "ไม่" --> a4["แสดงตัวหมุน loading"]
+    a4 --> a5["fetch POST http://IP:8002/search<br/>body: text, genres, moods"]
+  end
+
+  subgraph API["⚙️ API.py พอร์ต 8002"]
+    b1{"ข้อมูลตรงกับแบบฟอร์ม QueryRequest?<br/>ต้องมี text เป็นข้อความ"}
+    b1 -- "ไม่ตรง" --> b2["ตอบ 422"]
+    b1 -- "ตรง" --> b3["run_search ดึง payload.text<br/>genres และ moods ถูกมองข้าม"]
+    b3 --> b4["เรียก search(query_text)"]
+    b5["พิมพ์ log ในหน้าต่าง cmd ของ API<br/>คำค้นที่ได้รับ + ผลที่ส่งกลับ"]
+    b6["return status success + results"]
+    b5 --> b6
+  end
+
+  subgraph SE["🔎 Search.py"]
+    c1["① model.encode<br/>แปลงคำค้นเป็น vector 768 ค่า"] --> c2["② normalize<br/>ปรับความยาวเป็น 1"]
+    c2 --> c3["③ matmul กับ vector ของทุกเพลงในครั้งเดียว<br/>ได้คะแนน cosine ของแต่ละเพลง"]
+    c3 --> c4["④ topk<br/>เลือกคะแนนสูงสุด 5 อันดับ"]
+    c4 --> c5["⑤ ประกอบผล<br/>song_name, artist, score"]
+  end
+
+  subgraph APP2["📱 แอป Homeuser.js : รับผล"]
+    d1{"data.status<br/>เป็น success?"}
+    d1 -- "ใช่" --> d2{"results ว่างไหม?"}
+    d2 -- "ไม่ว่าง" --> d3["แสดงรายการ Results<br/>อันดับ ชื่อเพลง ศิลปิน"]
+    d2 -- "ว่าง" --> d4["แสดง ไม่พบเพลงที่ตรงกับการค้นหา"]
+    d1 -- "ไม่ใช่ เช่น 422" --> d5["ไม่แสดงอะไร<br/>ไม่มีข้อความแจ้งผู้ใช้"]
+    d6["fetch ล้มเหลว<br/>เช่น Server ปิด หรือ IP ผิด"] --> d7["alert: ไม่สามารถเชื่อมต่อกับ Server ได้"]
+    d8["ซ่อนตัวหมุน loading"]
+    d3 --> d8
+    d4 --> d8
+    d5 --> d8
+    d7 --> d8
+  end
+
+  a5 --> b1
+  a5 -. "ต่อ Server ไม่ได้" .-> d6
+  b4 --> c1
+  c5 --> b5
+  b6 --> d1
+  b2 --> d1
+
+  class a1,a3,a4,a5,d1,d2,d3,d4,d8,a2 app
+  class b1,b3,b4,b5,b6,c1,c2,c3,c4,c5 srv
+  class b2,d7,d6 err
+  class d5 warn
+</pre>
+  </div>
+  <ul>
+    <li>ตัวเลข ①–⑤ คือขั้นตอนใน <code>search()</code> ทั้งหมดคำนวณในหน่วยความจำ ไม่ได้เรียกฐานข้อมูล</li>
+    <li>ช่อง <code>genres</code> / <code>moods</code> ที่แอปส่งไปด้วย ตอนนี้ API.py ยังไม่ได้นำมากรองผล การค้นหาใช้เฉพาะข้อความ</li>
+    <li>ถ้า Server ตอบ 422 แอปจะไม่แสดงอะไรเลย เพราะโค้ดตรวจเฉพาะกรณี <code>status === 'success'</code></li>
+  </ul>
+</section>
+
+<!-- ============ 4 สมัครสมาชิก ============ -->
+<section id="s4">
+  <h2><span class="num">4</span>สมัครสมาชิก (Register → main.py → PostgreSQL → Otp → Login)</h2>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  subgraph RG["📱 แอป Register.js"]
+    r1(["ผู้ใช้กรอก username, email,<br/>password, confirm password<br/>แล้วกดสร้างบัญชี"]) --> r3{"กรอกครบทุกช่อง?"}
+    r3 -- "ไม่ครบ" --> r3a["Alert: กรุณากรอกข้อมูลให้ครบทุกช่อง"]
+    r3 -- "ครบ" --> r4{"password ตรงกับ<br/>confirm password?"}
+    r4 -- "ไม่ตรง" --> r4a["Alert: รหัสผ่านและยืนยันรหัสผ่านไม่ตรงกัน"]
+    r4 -- "ตรง" --> r5["fetch POST http://IP:8000/users<br/>body: username, email, password"]
+  end
+
+  subgraph MN["⚙️ main.py พอร์ต 8000"]
+    m1{"ข้อมูลตรงกับ UserData?<br/>email ต้องเป็นรูปแบบอีเมล"}
+    m1 -- "ไม่ตรง" --> m1a["ตอบ 422"]
+    m1 -- "ตรง" --> m2["bcrypt เข้ารหัสรหัสผ่าน<br/>ไม่เก็บรหัสผ่านจริง"]
+    m2 --> m3["INSERT INTO User<br/>RETURNING user_id"]
+    m3 --> m4{"บันทึกสำเร็จ?"}
+    m4 -- "ไม่ เช่น DB ปิด หรือข้อมูลซ้ำ" --> m4a["ตอบ 500"]
+    m4 -- "สำเร็จ" --> m5["commit แล้วตอบ<br/>status success + users_id"]
+  end
+  DB[("PostgreSQL<br/>ตาราง User")]
+  m3 <--> DB
+
+  subgraph AFT["📱 แอป หลังได้คำตอบ"]
+    x1["Alert: สมัครสมาชิกเรียบร้อยแล้ว"] --> x2["ไปหน้า Otp พร้อมแนบ users_id"]
+    x2 --> x3["ผู้ใช้กรอก OTP 6 หลัก แล้วกด Verify"]
+    x3 --> x4["ไปหน้า Login ทันที<br/>ยังไม่ได้ตรวจ OTP"]
+    x4 --> x5["กด Login! ไปหน้า Homeuser<br/>ยังไม่ได้ตรวจ username / password"]
+    y1["Alert: สมัครไม่สำเร็จ<br/>แสดงรายละเอียด error"]
+    y2["Alert: ข้อผิดพลาด<br/>เช่น ต่อ Server ไม่ได้"]
+  end
+
+  r5 --> m1
+  m5 --> x1
+  m1a --> y1
+  m4a --> y2
+  r5 -. "ต่อ Server ไม่ได้" .-> y2
+
+  class r1,r5,x1,x2,x3,r3,r4 app
+  class m1,m2,m3,m5,m4 srv
+  class DB db
+  class r3a,r4a,m1a,m4a,y1,y2 err
+  class x4,x5 warn
+</pre>
+  </div>
+  <ul>
+    <li>แอปตรวจ 2 อย่างก่อนส่ง (ช่องครบ และรหัสผ่านตรงกัน) ส่วนการตรวจรูปแบบอีเมลทำที่ฝั่ง Server</li>
+    <li>ตอบ 422 มีรายละเอียดเป็น JSON แอปจึงแสดงข้อความ error ได้ ส่วนตอบ 500 Server ส่งข้อความธรรมดา แอปอ่านเป็น JSON ไม่ได้ จึงเข้าทาง "ข้อผิดพลาด"</li>
+    <li>ช่องสีเหลือง = ขั้นตอนที่ยังเป็นเพียงหน้าตา ยังไม่ได้เชื่อมกับ Server (ดูส่วนที่ 8)</li>
+  </ul>
+</section>
+
+<!-- ============ 5 main.py ============ -->
+<section id="s5">
+  <h2><span class="num">5</span>คำขอ 1 ครั้งที่เข้ามาที่ main.py (ใช้กับทุก endpoint)</h2>
+  <p>ทั้ง 43 endpoint ของ <code>main.py</code> ทำงานตามผังเดียวกันนี้ ต่างกันแค่ตารางและคำสั่ง SQL</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  q0(["แอปส่งคำขอ เช่น<br/>POST /users, GET /Song, DELETE /Mood/3"]) --> q1["Uvicorn รับคำขอ<br/>ส่งต่อให้ FastAPI"]
+  q1 --> q2["CORSMiddleware<br/>แนบข้อความอนุญาตให้เรียกได้"]
+  q2 --> q3{"มี endpoint ที่ตรงกับ<br/>method + URL?<br/>ไล่ตามลำดับที่ประกาศ อันแรกที่ตรงถูกใช้"}
+  q3 -- "ไม่มี" --> e404["ตอบ 404"]
+  q3 -- "มี" --> q4{"ข้อมูลถูกต้อง?<br/>id ใน URL ต้องเป็นจำนวนเต็ม<br/>body ต้องตรงกับแบบฟอร์ม"}
+  q4 -- "ไม่ถูก" --> e422["ตอบ 422"]
+  q4 -- "ถูก" --> q5{"เป็นการสมัครสมาชิก?"}
+  q5 -- "ใช่" --> q5a["bcrypt เข้ารหัสรหัสผ่าน"]
+  q5a --> q6
+  q5 -- "ไม่" --> q6["get_connection()<br/>เปิดการเชื่อมต่อ PostgreSQL"]
+  q6 --> q7["สร้าง cursor<br/>RealDictCursor"]
+  q7 --> q8["cursor.execute<br/>SQL + ค่าที่ใส่แทน %s"]
+  q8 --> q9{"execute สำเร็จ?"}
+  q9 -- "ไม่ เช่น DB ปิด, SQL ผิด, ข้อมูลซ้ำ" --> e500["ตอบ 500<br/>conn.close ไม่ถูกเรียก<br/>การเชื่อมต่อค้าง"]
+  q9 -- "สำเร็จ" --> q10{"method อะไร?"}
+  q10 -- "GET อ่าน" --> g["fetchall หลายแถว หรือ fetchone แถวเดียว<br/>ไม่ต้อง commit"]
+  q10 -- "POST เพิ่ม" --> p["fetchone รับ id ใหม่จาก RETURNING<br/>แล้ว commit"]
+  q10 -- "PUT แก้ไข / DELETE ลบ" --> pd["commit<br/>ยืนยันการเปลี่ยนแปลง"]
+  g --> c["conn.close<br/>ปิดการเชื่อมต่อ"]
+  p --> c
+  pd --> c
+  c --> r["return status success<br/>+ data หรือ id"]
+  r --> j["FastAPI แปลงเป็น JSON<br/>ส่งกลับไปหาแอป"]
+
+  class q0 app
+  class q1,q2,q3,q4,q5,q5a,q6,q7,q8,q9,q10,g,p,pd,c,r,j srv
+  class e404,e422,e500 err
+</pre>
+  </div>
+  <ul>
+    <li><code>commit()</code> คือการยืนยันว่าบันทึกจริง ถ้าไม่เรียก ข้อมูลที่เพิ่ม/แก้/ลบจะไม่ถูกเก็บ GET ไม่ต้อง commit เพราะไม่ได้เปลี่ยนข้อมูล</li>
+    <li>ตัวอย่าง <code>POST /users</code> ไล่ตามผัง: ผ่านการตรวจ → เข้ารหัสรหัสผ่าน → เปิด DB → INSERT → รับ <code>user_id</code> → commit → ปิด → ตอบ success</li>
+    <li>รายละเอียดแต่ละ endpoint และบั๊กที่พบ อยู่ใน <code>Document.md</code></li>
+  </ul>
+</section>
+
+<!-- ============ 6 เตรียมข้อมูล ============ -->
+<section id="s6">
+  <h2><span class="num">6</span>การเตรียมข้อมูลและสร้าง Index (ทำก่อนใช้งาน)</h2>
+  <p>ขั้นตอนนี้ <b>Start.py ไม่ได้รันให้</b> ต้องรันเองตามลำดับ <code>Clean.py</code> → <code>MergeCSV.py</code> → <code>Buildindex.py</code> ผลลัพธ์คือไฟล์ที่ <code>API.py</code> โหลดไปใช้ค้นหา</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart TD
+  IN[("Ver.3/Dataset/<br/>ชื่อศิลปิน/ชื่อเพลง.txt<br/>เนื้อเพลงดิบ")]
+
+  subgraph CL["① Clean.py : ทำกับทุกไฟล์ ทีละบรรทัด"]
+    c0["อ่านไฟล์<br/>ลอง encoding: utf-8-sig, utf-8, tis-620, cp874"]
+    c0 --> c0q{"อ่านได้?"}
+    c0q -- "ไม่ได้" --> c0e["แจ้ง อ่านไม่ได้ แล้วข้ามไฟล์นี้"]
+    c0q -- "ได้" --> c1["normalize<br/>แก้วรรณยุกต์ซ้อน สระผิดตำแหน่ง"]
+    c1 --> c2["ลบอักขระพิเศษ<br/>เก็บแค่ ไทย อังกฤษ ตัวเลข"]
+    c2 --> c3["ลด space ซ้ำ"]
+    c3 --> c4{"บรรทัดว่าง?"}
+    c4 -- "ว่าง" --> c4a["ข้ามบรรทัดนี้"]
+    c4 -- "ไม่ว่าง" --> c5["ตัดคำภาษาไทย (pythainlp newmm)<br/>ฉันรักเธอ กลายเป็น ฉัน รัก เธอ"]
+    c5 --> c6["เขียนผลลงไฟล์"]
+  end
+
+  MID[("Ver.3/CleanedData/<br/>ชื่อศิลปิน/ชื่อเพลง.txt<br/>เนื้อเพลงที่ตัดคำแล้ว")]
+
+  subgraph MG["② MergeCSV.py"]
+    m1["วนอ่านทุกไฟล์ใน CleanedData"]
+    m1 --> m2["ชื่อโฟลเดอร์ = artist<br/>ชื่อไฟล์ = song_name"]
+    m2 --> m3["ต่อทุกบรรทัดของเนื้อเพลงเป็นบรรทัดเดียว<br/>ใช้ space คั่น"]
+    m3 --> m4["เขียน dataset.csv<br/>คอลัมน์: lyrics_tokens, song_name, artist"]
+  end
+
+  CSV[("Ver.3/dataset.csv")]
+
+  subgraph BI["③ Buildindex.py"]
+    b1["โหลดโมเดล intfloat/multilingual-e5-base"]
+    b1 --> b2["อ่าน dataset.csv"]
+    b2 --> b3["model.encode คอลัมน์ lyrics_tokens<br/>ได้ vector 768 ค่าต่อเพลง"]
+    b3 --> b4["L2 normalize ทุก vector<br/>เพื่อให้ dot product = cosine similarity"]
+    b4 --> b5["บันทึก songs_embeddings.pt<br/>และ songs_metadata.pkl"]
+  end
+
+  OUT[("songs_embeddings.pt<br/>songs_metadata.pkl")]
+  USE["API.py ผ่าน Search.py โหลดไฟล์สองตัวนี้<br/>ตอนเริ่มทำงาน แล้วใช้ค้นหา"]
+
+  IN --> c0
+  c6 --> MID
+  c4a --> c4
+  MID --> m1
+  m4 --> CSV
+  CSV --> b1
+  b5 --> OUT
+  OUT --> USE
+
+  class c0,c1,c2,c3,c5,c6,m1,m2,m3,m4,b1,b2,b3,b4,b5,USE,c0q,c4,c4a srv
+  class IN,MID,CSV,OUT db
+  class c0e err
+</pre>
+  </div>
+  <div class="note">
+    <b>ต้องทำซ้ำเมื่อเพิ่มเพลง:</b> เพลงใหม่จะค้นเจอก็ต่อเมื่อรันทั้ง 3 ไฟล์ใหม่ตามลำดับ แล้วรีสตาร์ท API.py เพราะ Search.py โหลดไฟล์ index เพียงครั้งเดียวตอนเริ่ม
+  </div>
+  <div class="note">
+    <b>ข้อสังเกต:</b> เนื้อเพลงใน index ผ่านการตัดคำแล้ว (มี space ระหว่างคำ) แต่คำค้นที่แอปส่งมาใน <code>search()</code> เป็นข้อความดิบที่ไม่ได้ตัดคำ รูปแบบข้อความสองฝั่งจึงต่างกัน อาจกระทบคุณภาพผลค้นหา ควรทดสอบเปรียบเทียบ
+  </div>
+</section>
+
+<!-- ============ 7 หน้าจอแอป ============ -->
+<section id="s7">
+  <h2><span class="num">7</span>ผังหน้าจอของแอป (การเปลี่ยนหน้า)</h2>
+  <p>ตามที่ตั้งไว้ใน <code>App.js</code> แอปเริ่มที่หน้า <b>Homeuser</b> ลูกศรทึบ = ปุ่มที่ผูกการเปลี่ยนหน้าไว้แล้ว เส้นประ = ยังไม่ได้เชื่อมหรือยังไปไม่ถึง</p>
+  <div class="tools"><span>ขนาดผัง</span><button data-z="-">−</button><button data-z="+">+</button></div>
+  <div class="box">
+<pre class="mermaid">
+flowchart LR
+  START(["เปิดแอป"]) --> H
+
+  H["Homeuser<br/>ค้นหาเพลง + FILTERS + Results<br/>เรียก API.py พอร์ต 8002"]
+  H -. "ปุ่ม History และรูปโปรไฟล์<br/>ยังไม่ได้ผูกให้ไปหน้าไหน" .-> X1["จากหน้า Homeuser<br/>ยังไม่มีทางไป Login หรือ Register"]
+
+  L["Login<br/>หน้าตาเท่านั้น<br/>ไม่ได้ตรวจกับ DB"]
+  R["Register<br/>เรียก main.py พอร์ต 8000"]
+  O["Otp<br/>หน้าตาเท่านั้น<br/>ไม่ได้ตรวจรหัส"]
+
+  L -- "Login!" --> H
+  L -- "Sign up" --> R
+  R -- "สมัครสำเร็จ" --> O
+  O -- "Verify" --> L
+
+  AD["AdminPage<br/>ยังไม่มีปุ่มไหนพามาหน้านี้"]
+  AS["Addsong<br/>กด Enter แล้วแค่ console.log<br/>ยังไม่บันทึกที่ไหน"]
+  AD -- "Add Song" --> AS
+  AD -. "Update Model, Add Category,<br/>Most search, รูปโปรไฟล์" .-> NR["ชื่อหน้าเหล่านี้ยังไม่ได้<br/>ลงทะเบียนใน App.js"]
+  AS -. "รูปโปรไฟล์ Profile" .-> NR
+
+  RS["Result<br/>การ์ดจำลอง 3 ใบ<br/>ยังไม่มีทางมาหน้านี้"]
+  RS -- "History" --> BACK["goBack ย้อนกลับ"]
+
+  class H,R app
+  class L,O,AS,AD,RS,BACK app
+  class X1,NR warn
+</pre>
+  </div>
+  <ul>
+    <li>หน้าที่ต่อ Server จริงมี 2 หน้า: <b>Homeuser</b> (ค้นหา) และ <b>Register</b> (สมัครสมาชิก)</li>
+    <li>หน้า Homeuser ยังไม่มีปุ่มพาไป Login / Register ตอนนี้จึงเข้าถึงสองหน้านั้นไม่ได้ผ่านการกดปุ่มตั้งแต่เปิดแอป (ต้องเปลี่ยน <code>initialRouteName</code> ใน <code>App.js</code> ชั่วคราวเพื่อทดสอบ)</li>
+  </ul>
+</section>
+
+<!-- ============ 8 สถานะปัจจุบัน ============ -->
+<section id="s8">
+  <h2><span class="num">8</span>สถานะปัจจุบัน: อะไรทำงานจริง อะไรยังไม่เสร็จ</h2>
+  <p>สรุปจากโค้ดที่มีอยู่ ณ ตอนที่เขียนไฟล์นี้</p>
+  <table>
+    <thead><tr><th>ส่วน</th><th>สถานะ</th><th>รายละเอียด</th></tr></thead>
+    <tbody>
+      <tr><td>ค้นหาเพลงด้วยเนื้อร้อง</td><td><span class="tag ok">ทำงานจริง</span></td><td>Homeuser → API.py → Search.py → แสดงผล 5 อันดับ</td></tr>
+      <tr><td>กรอง genre / mood ตอนค้นหา</td><td><span class="tag part">ยังไม่ทำงาน</span></td><td>แอปส่ง <code>genres</code> และ <code>moods</code> ไปด้วย แต่ API.py ไม่ได้ใช้ (QueryRequest มีช่อง <code>text</code> ช่องเดียว)</td></tr>
+      <tr><td>สมัครสมาชิก</td><td><span class="tag ok">ทำงานจริง</span></td><td>บันทึกลงตาราง User พร้อมเข้ารหัสรหัสผ่านด้วย bcrypt</td></tr>
+      <tr><td>ยืนยัน OTP</td><td><span class="tag no">ยังไม่ทำ</span></td><td>กด Verify แล้วไปหน้า Login ทันที ไม่ได้ส่งหรือตรวจรหัส</td></tr>
+      <tr><td>Login</td><td><span class="tag no">ยังไม่ทำ</span></td><td>กด Login! แล้วไปหน้า Homeuser ทันที ไม่ได้ตรวจ username / password</td></tr>
+      <tr><td>Addsong (เพิ่มเพลง)</td><td><span class="tag no">ยังไม่ทำ</span></td><td>ฟังก์ชัน handleEnter แค่ <code>console.log</code> ยังไม่ส่งไป main.py</td></tr>
+      <tr><td>AdminPage</td><td><span class="tag part">บางส่วน</span></td><td>ปุ่ม Add Song ไปหน้า Addsong ได้ ปุ่มอื่นไปหน้าที่ยังไม่ได้ลงทะเบียน และยังไม่มีปุ่มใดพามาหน้านี้</td></tr>
+      <tr><td>Result</td><td><span class="tag part">หน้าตาเท่านั้น</span></td><td>เป็นการ์ดจำลอง ผลการค้นหาจริงแสดงในหน้า Homeuser ไม่ได้ใช้หน้านี้</td></tr>
+      <tr><td>endpoint ของ main.py</td><td><span class="tag part">มีบั๊ก</span></td><td>ตาราง Train_Song และ Song มี endpoint อ่าน/แก้ไขที่ใช้ชื่อตารางและคอลัมน์ผิด และกลุ่ม <code>/…/all</code> น่าจะถูกจับคู่กับ <code>/{id}</code> ก่อน ดูส่วนที่ 3 ของ Document.md</td></tr>
+      <tr><td>ค้นหาเพลงกับฐานข้อมูล</td><td><span class="tag part">ยังแยกกัน</span></td><td>เพลงที่ค้นได้มาจากไฟล์ index ที่สร้างจาก Dataset ไม่ได้มาจากตาราง Song ใน PostgreSQL</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer>สร้างจากโค้ดในโฟลเดอร์ Thesis: Start.py, Ver.3/API.py, Ver.3/Search.py, Ver.3/Clean.py, Ver.3/MergeCSV.py, Ver.3/Buildindex.py, Backend_Database/main.py, FrontEnd/Frontend/App.js และ src/*.js</footer>
+
+<script type="module">
+  const CLASSDEFS = [
+    'classDef app  fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#0f172a',
+    'classDef srv  fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#0f172a',
+    'classDef db   fill:#ede9fe,stroke:#7c3aed,stroke-width:1.5px,color:#0f172a',
+    'classDef warn fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#0f172a',
+    'classDef err  fill:#fee2e2,stroke:#dc2626,stroke-width:1.5px,color:#0f172a'
+  ].join('\n');
+
+  try {
+    const mod = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+    const mermaid = mod.default;
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    // เติมสีมาตรฐานท้ายทุกผัง
+    document.querySelectorAll('pre.mermaid').forEach((el) => {
+      el.innerHTML = el.innerHTML.trim() + '\n' + CLASSDEFS;
+    });
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: dark ? 'dark' : 'default',
+      securityLevel: 'loose',
+      fontFamily: '"Segoe UI", Tahoma, "Noto Sans Thai", sans-serif',
+      flowchart: { htmlLabels: true, curve: 'basis', useMaxWidth: true, padding: 12, nodeSpacing: 40, rankSpacing: 46 }
+    });
+    await mermaid.run({ querySelector: 'pre.mermaid' });
+
+    // ปุ่มซูมของแต่ละผัง
+    document.querySelectorAll('section').forEach((sec) => {
+      const svg = sec.querySelector('.box svg');
+      if (!svg) return;
+      let zoom = 1;
+      sec.querySelectorAll('.tools button').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          zoom = Math.min(3, Math.max(0.6, zoom + (btn.dataset.z === '+' ? 0.25 : -0.25)));
+          svg.style.maxWidth = 'none';
+          svg.style.width = (zoom * 100) + '%';
+        });
+      });
+    });
+  } catch (err) {
+    console.error(err);
+    document.getElementById('fail').style.display = 'block';
+    document.querySelectorAll('pre.mermaid').forEach((el) => { el.style.visibility = 'visible'; });
+  }
+</script>
+</body>
+</html>
