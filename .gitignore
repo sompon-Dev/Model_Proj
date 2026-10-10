@@ -18,6 +18,8 @@ Ver.3/songs_embeddings.pt
 Ver.3/songs_metadata.pkl
 Ver.4/chunks_embeddings.pt
 Ver.4/chunks_metadata.pkl
+Ver.5/chunks_embeddings.pt
+Ver.5/chunks_metadata.pkl
 
 # ─── ไฟล์ข้อมูล/ผลลัพธ์ขนาดใหญ่ที่สร้างจากสคริปต์ใน Ver.4/InputData (ไม่ใช่ source code) ───
 Ver.4/InputData/thai_songs_30000_merged.xls
@@ -27,6 +29,23 @@ Ver.4/InputData/famous.csv
 Ver.4/InputData/nonfamous.csv
 Ver.4/InputData/view_failed.csv
 Ver.4/InputData/*_log*.txt
+Ver.4/InputData/*.csv.bak
+
+# ─── ไฟล์ข้อมูลขนาดใหญ่ใน DatasetInput (ดึง/สร้างใหม่ได้จากสคริปต์ ไม่ใช่ source code) ───
+DatasetInput/*.csv
+DatasetInput/*.csv.bak*
+
+# ─── ไฟล์ผลการทดสอบ/log ขนาดใหญ่ที่สคริปต์ใน Evaluation สร้างขึ้น (รันซ้ำได้) ───
+Evaluation/*.csv
+Evaluation/*.csv.bak
+Evaluation/*.txt
+Evaluation/BigTest/
+Evaluation/smallTest/*.csv
+Evaluation/smallTest/*.txt
+
+# ─── log ที่สคริปต์สร้างเอง ───
+Backend_Database/*_log*.txt
+Ver.5/build_log.txt
 
 # ─── OS ───
 .DS_Store
