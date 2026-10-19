@@ -16,6 +16,9 @@ def process_file(input_file, output_file):
     Ver.4 ใช้โครงสร้างบรรทัดนี้แบ่ง chunk ตอนสร้าง index
     """
     # อ่านไฟล์ รองรับหลาย encoding เพราะไฟล์ไทยบางไฟล์ไม่ได้ใช้ utf-8
+    # วนลองทีละ encoding ถ้าอ่านสำเร็จจะ break ออกจาก loop ทันที
+    # ส่วน else ท้าย for (ไม่ใช่ else ของ if) จะรันก็ต่อเมื่อ loop จบครบทุกตัวโดยไม่มี break เลย
+    # หมายถึง "ลองครบทุก encoding แล้วยังอ่านไม่ได้สักอัน" — นี่คือ for...else ของ Python ไม่เหมือน if...else ทั่วไป
     for encoding in ("utf-8-sig", "utf-8", "tis-620", "cp874"):
         try:
             lines = input_file.read_text(encoding=encoding).splitlines()

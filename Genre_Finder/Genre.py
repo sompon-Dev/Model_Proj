@@ -28,14 +28,16 @@ TOP_N    = 5    # เอา tag ที่มีคนติดเยอะสุ
 
 
 def _load_env():
-    """อ่านค่าจากไฟล์ .env ข้างๆ ไฟล์นี้ (ถ้ามี) เช่น LASTFM_API_KEY=xxxx"""
+    """อ่านค่าจากไฟล์ .env ข้างๆ ไฟล์นี้ (ถ้ามี) เช่น LASTFM_API_KEY=xxxx
+    เขียนเองแทนใช้ library python-dotenv (ยังไม่ได้ติดตั้งในโปรเจกต์) — ทำหน้าที่เหมือนกัน
+    คือแยก "KEY=VALUE" แล้วเอาไปตั้งเป็น environment variable ให้ os.environ.get() อ่านเจอทีหลัง"""
     env_file = Path(__file__).parent / ".env"
     if not env_file.exists():
         return
     for line in env_file.read_text(encoding="utf-8").splitlines():
         if "=" in line and not line.lstrip().startswith("#"):
-            key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+            key, value = line.split("=", 1)  # split("=", 1) แยกแค่ "=" ตัวแรกเท่านั้น เผื่อ VALUE มี "=" ปนอยู่ (เช่น URL ที่มี query string)
+            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))  # setdefault: ตั้งค่าก็ต่อเมื่อยังไม่มีตัวแปรนี้อยู่ก่อน ถ้าเครื่องมี env variable นี้ตั้งไว้แล้วจะไม่ทับ
 
 
 _load_env()
@@ -50,14 +52,16 @@ def _api_key():
 
 def _call(method, **params):
     """เรียก Last.fm API แล้วคืน dict ที่ parse จาก JSON แล้ว — โยน error ถ้า Last.fm ตอบ error กลับมา"""
+    # **params คือ dict unpacking: เอาทุก key-value ใน params (ที่ส่งเข้ามาตอนเรียกฟังก์ชัน เช่น
+    # track=..., artist=...) มากางใส่ใน dict literal นี้รวมกับ method/api_key/format ที่ตั้งตายตัวไว้
     r = requests.get(
         API_URL,
         params={"method": method, "api_key": _api_key(), "format": "json", **params},
         timeout=10,
     )
-    r.raise_for_status()
+    r.raise_for_status()  # เช็ก HTTP status code เช่น 404/500 เท่านั้น — Last.fm ตอบ 200 OK เสมอแม้ตอน error ระดับ API
     data = r.json()
-    if "error" in data:
+    if "error" in data:  # เพราะ Last.fm ซ่อน error ไว้ใน body ของ JSON ไม่ใช่ HTTP status code จึงต้องเช็กในนี้แยกอีกชั้น
         raise RuntimeError(f"Last.fm error {data['error']}: {data.get('message')}")
     return data
 
@@ -66,7 +70,7 @@ def _as_list(x):
     """Last.fm คืน dict เดี่ยวแทน list เวลามีผลลัพธ์แค่ 1 ตัว (ความประหลาดของ API นี้) ฟังก์ชันนี้ทำให้เป็น list เสมอ"""
     if x is None:
         return []
-    return x if isinstance(x, list) else [x]
+    return x if isinstance(x, list) else [x]  # x if ... else ... คือ conditional expression (ternary) ทางลัดของ if/else บรรทัดเดียว: ถ้าเป็น list อยู่แล้วคืนตามเดิม ถ้าไม่ใช่ (เป็น dict เดี่ยว) ห่อด้วย [] ให้เป็น list
 
 
 def _search_track(song_name):
@@ -112,6 +116,9 @@ def get_genre(song_name, artist=None):
         _print_result(song_name, artist, result)
         return result
 
+    # sorted(..., key=lambda ...) เรียง list ของ dict โดยใช้ "count" (จำนวนคนติด tag นี้) เป็นเกณฑ์เทียบ
+    # key=lambda t: ... บอกว่าเทียบด้วยค่านี้ ไม่ใช่เทียบ dict ทั้งก้อนตรงๆ, reverse=True ให้มากไปน้อย
+    # [:TOP_N] ตัดเอาแค่ TOP_N อันดับแรกหลังเรียงแล้ว (list slicing)
     tags_sorted = sorted(tags, key=lambda t: int(t.get("count", 0)), reverse=True)[:TOP_N]
     result = {
         "genres": [t["name"] for t in tags_sorted],

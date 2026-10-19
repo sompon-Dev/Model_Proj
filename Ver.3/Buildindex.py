@@ -18,8 +18,10 @@ print("อ่าน dataset.csv...")
 df = pd.read_csv(CSV_FILE)                                             
 print(f"พบเพลงทั้งหมด {len(df)} เพลง\n")                                
 
-lyrics_list = df["lyrics_tokens"].tolist()                            
-metadata    = df[["song_name", "artist"]].to_dict(orient="records")    
+lyrics_list = df["lyrics_tokens"].tolist()
+# .to_dict(orient="records") แปลง DataFrame เป็น list ของ dict ทีละแถว เช่น
+# [{"song_name": "...", "artist": "..."}, {...}, ...] สะดวกเอาไปวนใช้ทีหลังมากกว่าตัว DataFrame เอง
+metadata    = df[["song_name", "artist"]].to_dict(orient="records")
 
 print("กำลังแปลงเนื้อเพลงเป็น vector...")                                  
 print("(อาจใช้เวลาสักครู่ขึ้นอยู่กับจำนวนเพลง)\n")                               
@@ -38,6 +40,8 @@ print(f"\nแปลงสำเร็จ! ขนาด vector: {embeddings.shape
 print("\nNormalize Vectors ด้วย PyTorch...")
 
 # L2 Normalize แบบเดียวกับ faiss.normalize_L2
+# p=2 คือใช้ L2 norm (ความยาวเวกเตอร์แบบปกติ สูตร sqrt(sum(x^2))) แล้วหารเวกเตอร์ด้วยความยาวนี้ ให้ความยาวกลายเป็น 1
+# dim=1 คือ normalize ไปตามแต่ละแถว (แต่ละเพลง 1 แถว) ไม่ใช่รวมทั้งตาราง — ถ้าข้อมูลเป็นเวกเตอร์เดี่ยว 1 มิติ จะใช้ dim=0 แทน
 embeddings_norm = torch.nn.functional.normalize(embeddings, p=2, dim=1)
 
 print(f"เตรียม Tensor เสร็จสิ้น มีเพลงทั้งหมด {embeddings_norm.shape[0]} เพลง")

@@ -30,11 +30,16 @@ from pathlib import Path
 
 import pandas as pd
 
+# parents[2] ไต่ folder ขึ้นไป 2 ชั้นจากไฟล์นี้ (InputData -> Ver.4 -> Thesis) เพื่อหา root ของโปรเจกต์
 ROOT = Path(__file__).resolve().parents[2]
+# เติม folder Link_Fetcher กับ Genre_Finder เข้า sys.path (รายการที่ Python ใช้หาไฟล์ตอน import)
+# เพราะ Links.py/Genre.py อยู่คนละ folder กับไฟล์นี้ — insert(0, ...) ใส่ไว้อันดับแรกให้หาเจอก่อน
 sys.path.insert(0, str(ROOT / "Link_Fetcher"))
 sys.path.insert(0, str(ROOT / "Genre_Finder"))
 from Links import get_links   # noqa: E402  (Link_Fetcher)
 from Genre import get_genre   # noqa: E402  (Genre_Finder)
+# "noqa: E402" คือ comment บอก linter (ตัวเช็คสไตล์โค้ด) ว่า "รู้ว่า import นี้ไม่อยู่บนสุดของไฟล์ตามธรรมเนียม
+# แต่ตั้งใจ ไม่ต้องเตือน" — เพราะ import นี้ต้องมาหลัง sys.path.insert ข้างบน ไม่งั้นจะหาไฟล์ไม่เจอ
 
 BASE_PATH   = Path(__file__).parent
 INPUT_FILE  = BASE_PATH / "thai_songs_30000_merged.xls"
@@ -61,7 +66,7 @@ def enrich_one(title, artist, lyric):
     genre = ""
     try:
         genre_result = get_genre(title, artist)
-        genre = ", ".join(genre_result.get("genres", []))
+        genre = ", ".join(genre_result.get("genres", []))  # ", ".join([...]) รวม list ของแนวเพลงให้เป็นสตริงเดียวคั่นด้วยจุลภาค เช่น ["pop","rock"] -> "pop, rock"
     except Exception as e:
         print(f"    [genre error] {title} - {artist}: {e}")
 
@@ -95,6 +100,8 @@ def load_done():
     for path, cols in ((OUTPUT_FILE, ("name", "artist")), (FAILED_FILE, ("name", "artist"))):
         if path.exists():
             with open(path, encoding="utf-8-sig", newline="") as f:
+                # generator expression ( ... for row in ... ) ส่งตรงเข้า set.update() ได้เลย
+                # ไม่ต้องสร้าง list ก่อน ประหยัดหน่วยความจำกว่าตอนไฟล์มีหลายพันแถว
                 done.update((row[cols[0]], row[cols[1]]) for row in csv.DictReader(f))
     return done
 
@@ -110,12 +117,15 @@ def open_writer(path, fieldnames):
 
 
 def main():
+    # pandas DataFrame: อ่าน CSV เป็นตารางในหน่วยความจำ เลือกได้ทีละหลายคอลัมน์ด้วย df[[...]]
     df = pd.read_csv(INPUT_FILE, encoding="utf-8-sig")
-    df[["Title", "Artist", "Lyric"]] = df[["Title", "Artist", "Lyric"]].fillna("")
+    df[["Title", "Artist", "Lyric"]] = df[["Title", "Artist", "Lyric"]].fillna("")  # .fillna("") เติมช่องที่เป็นค่าว่าง/NaN ด้วยสตริงเปล่า กันพังตอนเอาไปต่อสตริงทีหลัง
     if LIMIT:
         df = df.head(LIMIT)
 
     done = load_done()
+    # list comprehension พร้อมเงื่อนไข if: คัดเอาแถวที่ (ชื่อเพลง, ศิลปิน) ยังไม่อยู่ใน done มาเก็บเป็น pending
+    # .itertuples() วนทีละแถวของ DataFrame โดยเข้าถึงคอลัมน์แบบ row.ชื่อคอลัมน์ (เร็วกว่า .iterrows())
     pending = [row for row in df.itertuples() if (row.Title, row.Artist) not in done]
     print(f"เพลงทั้งหมด {len(df)} | ทำไปแล้ว {len(done)} (ข้าม) | เหลือต้องทำ {len(pending)}\n")
 
@@ -130,6 +140,11 @@ def main():
     kept = dropped = timed_out_n = errored = 0
     t_start = time.time()
 
+    # ThreadPoolExecutor สร้าง "pool" ของ worker thread ไว้ล่วงหน้า (จำนวน WORKERS ตัว) แล้วแจกงานให้ทำพร้อมกัน
+    # pool.submit(fn, ...) ส่งงานเข้า pool ทันทีแบบไม่รอ (non-blocking) คืนกลับมาเป็น "Future" object
+    # ซึ่งเป็นเหมือนใบเสร็จที่จะมีผลลัพธ์โผล่มาทีหลังตอนงานเสร็จ — ไม่ใช่ผลลัพธ์จริงในตอนนั้นเลย
+    # ที่นี่ไม่ใช้ concurrent.futures.wait()/as_completed() ตรงๆ เพราะต้องเช็ก timeout รายตัวเองด้วย
+    # (futures[fut] เก็บเวลาที่ submit ไว้คู่กัน) จึงวนเช็คสถานะเองด้วย f.done() ทุกรอบแทน
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         song_iter = iter(pending)
         futures = {}  # future -> (title, artist, submitted_at)
@@ -148,13 +163,13 @@ def main():
 
         while futures:
             now = time.time()
-            finished = [f for f in futures if f.done()]
+            finished = [f for f in futures if f.done()]  # .done() เช็กว่างานนี้ทำเสร็จหรือยัง (ไม่บล็อกรอ)
             timed_out = [f for f in futures if not f.done() and now - futures[f][2] > TIMEOUT_SEC]
 
             for f in finished:
                 title, artist, _ = futures.pop(f)
                 try:
-                    result = f.result()
+                    result = f.result()  # .result() ดึงค่าที่ enrich_one คืนมา (งานเสร็จแล้วแน่นอนเพราะเช็ก .done() มาก่อนหน้านี้แล้ว)
                     reason = missing_reason(result)
                     if reason:
                         record_failed(title, artist, reason)

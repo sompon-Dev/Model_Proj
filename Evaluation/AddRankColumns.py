@@ -38,19 +38,22 @@ def load_search_module(mod_name, search_py_path):
     """โหลด Search.py ของ Ver.4/Ver.5 แยกกันไม่ให้ชนกัน (ทั้งคู่ชื่อไฟล์ Search.py เหมือนกัน
     ใช้ importlib ตรงๆ แทน import ปกติ)"""
     folder = search_py_path.parent
-    old_syspath = list(sys.path)
+    old_syspath = list(sys.path)   # เก็บ sys.path เดิมไว้ก่อน จะคืนกลับทีหลังไม่ว่าจะสำเร็จหรือพัง (finally)
     sys.path.insert(0, str(folder))
     try:
-        spec = importlib.util.spec_from_file_location(mod_name, search_py_path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[mod_name] = module
-        spec.loader.exec_module(module)
+        # ขั้นตอนโหลดโมดูลจาก path ไฟล์ตรงๆ (ไม่ผ่าน import ปกติ) มี 4 ก้าว:
+        spec = importlib.util.spec_from_file_location(mod_name, search_py_path)  # 1) สร้าง "สเปค" อธิบายว่าโมดูลนี้ชื่ออะไร อยู่ไฟล์ไหน (ยังไม่ได้รันโค้ดในไฟล์)
+        module = importlib.util.module_from_spec(spec)  # 2) สร้าง module object เปล่าๆ ตามสเปคนั้น
+        sys.modules[mod_name] = module  # 3) ลงทะเบียนโมดูลนี้ใน sys.modules ด้วยชื่อ mod_name ที่เราตั้งเอง แยกจากชื่อไฟล์จริง "Search" กันชนกัน
+        spec.loader.exec_module(module)  # 4) รันโค้ดทั้งไฟล์จริงๆ ตอนนี้ ใส่ตัวแปร/ฟังก์ชันทุกตัวที่ไฟล์สร้างเข้าไปใน module object นี้
         return module
     finally:
         sys.path[:] = old_syspath
 
 
 def _song_key_to_idx(sm):
+    # dict comprehension: สร้าง dict จับคู่ (ชื่อเพลง, ศิลปิน) -> ตำแหน่ง index ในลิสต์ sm.songs
+    # ใช้เป็น "สมุดที่อยู่" หาตำแหน่งเพลงเป้าหมายได้เร็ว (O(1)) แทนการไล่ค้นทีละตัวในลิสต์ (O(n))
     return {(s["song_name"], s["artist"]): i for i, s in enumerate(sm.songs)}
 
 
@@ -80,18 +83,25 @@ def batch_ranks(sm, queries, targets, song_idx_per_chunk, key_to_idx):
         batch_t = targets[start:start + BATCH_SIZE]
         prepped = [preprocess(q) for q in batch_q]
 
+        # encode คำค้นทั้ง batch (สูงสุด BATCH_SIZE คำค้น) พร้อมกันในการเรียกครั้งเดียว ได้ตาราง (B, 768)
+        # กลับมา — ต่างจาก Search.py ปกติที่ encode ทีละคำค้นได้เวกเตอร์เดียว (768,) นี่คือจุดที่ทำให้เร็วขึ้นมาก
         q_vecs = sm.model.encode(
             ["query: " + p for p in prepped], convert_to_tensor=True,
             normalize_embeddings=True, batch_size=64, show_progress_bar=False,
         )   # (B, 768)
+        # sm.embeddings (n_chunks, 768) @ q_vecs.T (768, B) = (n_chunks, B): คูณเมทริกซ์ครั้งเดียว ได้คะแนน
+        # ความคล้ายของ "ทุก chunk" เทียบกับ "ทุกคำค้นใน batch" พร้อมกันหมด (แทนการวนลูปทำทีละคำค้น)
         dense = ((sm.embeddings @ q_vecs.T - 0.70) / 0.25).clamp(0, 1)   # (n_chunks, B)
 
         q_tfidf = sm.tfidf.transform(prepped)                            # (B, vocab) sparse
+        # เหมือน dense แต่ใช้ TF-IDF: คูณเมทริกซ์ chunk ทุกตัวกับ query ทุกตัวใน batch พร้อมกัน แล้ว .toarray() แปลง sparse matrix เป็นตารางเลขปกติ
         lexical = torch.tensor(
             (sm.chunk_tfidf @ q_tfidf.T).toarray(), dtype=torch.float32
         )   # (n_chunks, B)
 
         scores = sm.W_DENSE * dense + (1 - sm.W_DENSE) * lexical         # (n_chunks, B)
+        # argsort(dim=0, ...) เรียงแต่ละ "คอลัมน์" (แต่ละคำค้น) แยกกัน ไม่ใช่เรียงทั้งตารางรวมกัน
+        # ผลลัพธ์คือ index ของ chunk เรียงจากคะแนนมากไปน้อย แยกเป็นคอลัมน์ต่อคำค้น (เหมือนทำ argsort ทีละคำค้น แต่ทำทุกคำค้นพร้อมกันในคำสั่งเดียว)
         order = scores.argsort(dim=0, descending=True).numpy()           # (n_chunks, B)
 
         for j in range(len(batch_q)):
@@ -114,7 +124,7 @@ def main(csv_path, model_name):
     sm = load_search_module(f"search_{model_name}", search_py)
     print(f"  {len(sm.songs)} เพลง / {len(sm.chunks)} chunks\n", flush=True)
 
-    song_idx_per_chunk = np.array([c["song_idx"] for c in sm.chunks])
+    song_idx_per_chunk = np.array([c["song_idx"] for c in sm.chunks])  # list comprehension ดึง song_idx ของทุก chunk มาเป็น numpy array เดียว ใช้ index ด้วย i ตัวเลขจาก order ได้ตรงๆ เร็วกว่า list ธรรมดา
     key_to_idx = _song_key_to_idx(sm)
 
     with open(csv_path, encoding="utf-8-sig", newline="") as f:

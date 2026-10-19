@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "LyriSeek System Architecture",
+    "subtitle": "Thai lyric semantic search — mobile app, backend API, search model, and third-party auth/voice/video",
+    "output": "lyriseek-architecture.html",
+    "quality_profile": "showcase",
+    "legend": { "mode": "auto" }
+  },
+  "components": [
+    { "id": "admin_app", "type": "frontend", "label": "Admin Screens", "sublabel": "AddSong · AddCategory · UpdateModel · MostSearch", "pos": [40, 40], "size": [200, 64] },
+    { "id": "mobile_app", "type": "frontend", "label": "Homeuser / Result", "sublabel": "Expo React Native · search, filter, mic", "pos": [280, 40], "size": [180, 64] },
+    { "id": "auth_screens", "type": "frontend", "label": "Login / Register / OTP", "sublabel": "email+password, Google, role routing", "pos": [540, 40], "size": [180, 64] },
+
+    { "id": "backend_api", "type": "backend", "label": "Backend_Database API", "sublabel": "FastAPI :8000 — main.py", "pos": [220, 220], "size": [180, 64] },
+    { "id": "search_api", "type": "backend", "label": "Ver.5 Search API", "sublabel": "FastAPI :8002 — API.py", "pos": [480, 220], "size": [180, 64] },
+
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "Song · Genre · Mood · Train_Song · trending_song", "pos": [220, 400], "size": [200, 64] },
+    { "id": "model_index", "type": "database", "label": "Vector Index Files", "sublabel": "chunks_embeddings.pt + chunks_metadata.pkl", "pos": [480, 400], "size": [180, 64] },
+    { "id": "buildindex_update", "type": "backend", "label": "BuildindexUpdate.py", "sublabel": "re-embeds new Train_Song rows", "pos": [720, 400], "size": [180, 64] },
+    { "id": "fetch_thumbnails", "type": "backend", "label": "FetchThumbnails.py", "sublabel": "offline script — imageFetching/", "pos": [20, 400], "size": [170, 64] },
+
+    { "id": "supabase", "type": "cloud", "label": "Supabase", "sublabel": "Auth + Postgres (public.users)", "pos": [500, 580], "size": [170, 60] },
+    { "id": "google_oauth", "type": "external", "label": "Google OAuth", "sublabel": "sign-in consent", "pos": [700, 580], "size": [150, 60] },
+    { "id": "google_stt", "type": "external", "label": "Google Speech-to-Text", "sublabel": "voice search transcription", "pos": [880, 580], "size": [160, 60] },
+    { "id": "youtube", "type": "external", "label": "YouTube Music", "sublabel": "playback + thumbnail CDN", "pos": [1070, 580], "size": [150, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Third-party managed services", "wraps": ["supabase", "google_oauth", "google_stt", "youtube"] }
+  ],
+  "connections": [
+    { "id": "admin-to-backend", "from": "admin_app", "to": "backend_api", "label": "REST (AddSong, Genre, Mood, Train_Song)" },
+    { "id": "mobile-to-backend", "from": "mobile_app", "to": "backend_api", "label": "REST (Genre, Mood, Song, trending_song)" },
+    { "id": "mobile-to-search", "from": "mobile_app", "to": "search_api", "label": "POST /search", "fromSide": "right", "toSide": "top" },
+    { "id": "auth-to-supabase", "from": "auth_screens", "to": "supabase", "label": "Auth + upsert users", "fromSide": "bottom", "toSide": "top" },
+    { "id": "auth-to-google-oauth", "from": "auth_screens", "to": "google_oauth", "label": "OAuth consent", "variant": "security", "fromSide": "right", "toSide": "top" },
+    { "id": "mobile-to-stt", "from": "mobile_app", "to": "google_stt", "label": "audio → transcript", "fromSide": "right", "toSide": "top" },
+    { "id": "mobile-to-youtube", "from": "mobile_app", "to": "youtube", "label": "open link + thumbnail", "fromSide": "right", "toSide": "top" },
+
+    { "id": "backend-to-postgres", "from": "backend_api", "to": "postgres", "label": "SQL (psycopg2)", "fromSide": "bottom", "toSide": "top" },
+    { "id": "search-to-index", "from": "search_api", "to": "model_index", "label": "torch.load / pickle.load", "fromSide": "bottom", "toSide": "top" },
+    { "id": "backend-to-buildindex", "from": "backend_api", "to": "buildindex_update", "label": "update_index(csv)", "variant": "dashed" },
+    { "id": "buildindex-to-index", "from": "buildindex_update", "to": "model_index", "label": "writes updated tensors" },
+    { "id": "fetchthumb-to-postgres", "from": "fetch_thumbnails", "to": "postgres", "label": "SELECT / UPDATE Image_Link", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "amber", "title": "Two parallel backends", "items": ["Backend_Database (port 8000) owns all relational data", "Ver.5 Search API (port 8002) only holds the embedding index — it never queries Postgres directly"] },
+    { "dot": "cyan", "title": "Closing the ID gap", "items": ["Ver.5 search results carry only song_name/artist text", "The app calls /Song/by_names afterwards to recover the real song_id and youtube_link"] },
+    { "dot": "emerald", "title": "Incremental re-indexing", "items": ["UpdateModel.js lets an admin pick Train_Song rows to train", "BuildindexUpdate.py re-uses the frozen E5 model and only encodes the new chunks, then appends to the existing tensor"] },
+    { "dot": "rose", "title": "Offline / manual tools", "items": ["FetchThumbnails.py and BuildindexUpdate.py are run by hand, not triggered by a schedule", "Both write straight into Postgres/the index files, bypassing the REST API"] },
+    { "dot": "violet", "title": "Key source files (unverified — uncommitted working tree)", "items": ["Homeuser.js, Result.js, Login.js, Otp.js, lib/supabase.js (Frontend_Ver_2/frontend_Ver2/src, /lib)", "main.py (Backend_Database); API.py, Search.py, BuildindexUpdate.py (Ver.5)", "FetchThumbnails.py (imageFetching)"] }
+  ]
+}

@@ -1,22 +1,9 @@
-"""
-Buildindex.py (Ver.5)
-เหมือน Ver.4 ทุกอย่าง (chunk + embed ด้วย multilingual-e5-base, hybrid dense+lexical ที่ Search.py)
-ต่างแค่จำนวนเพลงในคลัง — Ver.5 รวมเพลงเดิมของ Ver.4 (80 เพลง) เข้ากับเพลงที่เพิ่งเพิ่มเข้าฐานข้อมูล
-จาก DatasetInput (famous_with_genre.csv + songs_enriched.csv) สร้างมาเพื่อทดสอบว่า dataset
-ที่ใหญ่ขึ้นมาก (~80 -> ~7,900 เพลง) มีผลต่อความแม่นยำของการค้นหาหรือไม่ (เทียบกับ Ver.4 ใน Evaluate.py)
 
-ความต่างในการ chunk:
-  - เพลงเดิมของ Ver.4 (CleanedData) มีโครงสร้างบรรทัด (1 บรรทัด = 1 วรรค) จึง chunk แบบเดิม
-    คือหน้าต่าง 2 บรรทัด เลื่อนทีละ 1 บรรทัด
-  - เพลงใหม่จาก DatasetInput เป็นเนื้อเพลงดิบ 1 ก้อนยาว ไม่มีการตัดบรรทัด (ไม่ได้ผ่าน Clean.py)
-    จึง clean+ตัดคำด้วย textproc.preprocess() ก่อน แล้ว chunk แบบหน้าต่าง "คำ" แทน (WINDOW_TOK คำ
-    เลื่อนทีละ STRIDE_TOK คำ สัดส่วนทับซ้อน 50% เท่ากับฝั่งบรรทัดของ Ver.4)
-"""
-import csv
 import pickle
 import sys
 from pathlib import Path
 
+import pandas as pd
 import torch
 from sentence_transformers import SentenceTransformer
 
@@ -24,15 +11,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 from textproc import preprocess
 
 BASE_PATH      = Path(__file__).parent
-VER4_CLEANED   = BASE_PATH.parent / "Ver.4" / "CleanedData"     # เพลงเดิม 80 เพลง (มีโครงสร้างบรรทัด)
+CLEANED_DATA   = BASE_PATH / "CleanedData"                       # เพลงเดิม 80 เพลง (มีโครงสร้างบรรทัด) — คัดลอกมาจาก Ver.4 ไว้ในนี้แล้ว ไม่ต้องไปอ่านข้าม folder อีก
 DATASET_INPUT  = BASE_PATH.parent / "DatasetInput"               # เพลงใหม่ (เนื้อเพลงดิบก้อนเดียว)
 NEW_SONG_FILES = ["famous_with_genre.csv", "songs_enriched.csv"]
 
 INDEX_FILE     = BASE_PATH / "chunks_embeddings.pt"
 METADATA_FILE  = BASE_PATH / "chunks_metadata.pkl"
 
-WINDOW_LINE, STRIDE_LINE = 2, 1     # สำหรับเพลงเดิม (บรรทัด) เหมือน Ver.4
-WINDOW_TOK,  STRIDE_TOK  = 32, 16   # สำหรับเพลงใหม่ (คำ) ทับซ้อน 50% แบบเดียวกัน
+WINDOW_LINE, STRIDE_LINE = 2, 1
+WINDOW_TOK,  STRIDE_TOK  = 32, 16
 
 
 def make_line_chunks(lines):
@@ -50,9 +37,9 @@ def make_token_chunks(tokens):
 songs  = []   # [{song_name, artist}]
 chunks = []   # [{song_idx, text}]
 
-# 1) เพลงเดิมของ Ver.4 ------------------------------------------------
-print("อ่านเพลงเดิมจาก Ver.4/CleanedData...")
-for artist_folder in sorted(VER4_CLEANED.iterdir()):
+# 1) เพลงเดิม 80 เพลง ------------------------------------------------
+print("อ่านเพลงเดิมจาก CleanedData...")
+for artist_folder in sorted(CLEANED_DATA.iterdir()):
     if not artist_folder.is_dir():
         continue
     for txt_file in sorted(artist_folder.glob("*.txt")):
@@ -68,27 +55,36 @@ print(f"  เพลงเดิม {n_old_songs} เพลง -> {n_old_chunks} 
 
 # 2) เพลงใหม่จาก DatasetInput ------------------------------------------
 print("อ่านเพลงใหม่จาก DatasetInput...")
-seen_keys = set()   # (song_name, artist) กันเพลงซ้ำข้ามไฟล์ (famous_with_genre เป็นส่วนย่อยที่อาจซ้ำ)
+seen_keys = set()   # Set ของจำนวณเอาไว้ทำการตรวจสอบเพลงซ้ำจากชื่อเพลงและชื่อศืลปิน
 for fname in NEW_SONG_FILES:
     path = DATASET_INPUT / fname
-    with open(path, encoding="utf-8-sig", newline="") as f:
-        rows = list(csv.DictReader(f))
+    df = pd.read_csv(path, encoding="utf-8-sig")   # อ่านทั้งไฟล์เป็นตาราง (DataFrame) ทีเดียว
     added = 0
-    for row in rows:
-        key = (row["name"], row["artist"])
+    for row in df.itertuples():   # วนทีละแถว เข้าถึงคอลัมน์แบบ row.ชื่อคอลัมน์ (เช่น row.name, row.artist)
+        
+        key = (row.name, row.artist)  # ใช้ tuple (ชื่อเพลง, ศิลปิน) เป็น key เดียว กันเพลงชื่อซ้ำข้ามศิลปินถูกนับว่าเป็นเพลงเดียวกันผิดๆ
+        # ถ้า keyในที่นี้คือ ชื่อเพลง,ชื่อศิลปิน มีในsetของseen_keys แปลว่ามีเพลงนี้มาตรวจสอบก่อนหน้านั้นแล้วเท่ากับว่าเพลงซ้ำก็ข้ามไป loop ถัดไป
         if key in seen_keys:
             continue
+        # ไม่มีใน set seen_keys ก็เพิ่มเอาไว้เพื่อกันซ้ำกับเพลงที่กำลังloop นี้
         seen_keys.add(key)
-        tokens = preprocess(row["lyric"]).split()
+        # แบ่งคำโดยใข้คำสั่งจาก ไฟล์ textproc.preprocess
+        tokens = preprocess(row.lyric).split()
+        # ถ้าใน token ไม่คำเลยแม้แต่คำเดียวข้ามไป loop ถัดไป
         if not tokens:
             continue
+        # กำหนดจำนวนเพลงเอาไว้ในตัวแปร song_idx
         song_idx = len(songs)
-        songs.append({"song_name": row["name"], "artist": row["artist"]})
+        # นำชื่อเพลง ใส่ใน column:song_name และนำชื่อศิลปินใส่ใน column:artist ในList song เอาไว้เป็น metadata
+        songs.append({"song_name": row.name, "artist": row.artist})
+        # นำหมายเลขเพลง(index)เข้าไปใส่ใน column:song_idx และนำ คำทีละคำไปใส่ในcolumn:text ใน list chunks
         for text in make_token_chunks(tokens):
             chunks.append({"song_idx": song_idx, "text": text})
-        added += 1
-    print(f"  {fname}: {added} เพลงใหม่ (จากทั้งหมด {len(rows)} แถว)")
+        added += 1 
+    #บอกว่าเสร็จไปกี่เพลงจากกี่เพลง
+    print(f"  {fname}: {added} เพลงใหม่ (จากทั้งหมด {len(df)} แถว)")
 
+#สรุปผลว่าเอาเพลงเข้าไปกี่เพลง
 print(f"\nรวมทั้งหมด {len(songs)} เพลง ({n_old_songs} เดิม + {len(songs) - n_old_songs} ใหม่) "
       f"-> {len(chunks)} chunks ({n_old_chunks} เดิม + {len(chunks) - n_old_chunks} ใหม่)\n")
 
@@ -106,6 +102,8 @@ embeddings = model.encode(
 )
 print(f"\nแปลงสำเร็จ! ขนาด vector: {embeddings.shape}")
 
+# p=2 คือใช้ L2 norm (ความยาวเวกเตอร์แบบปกติ สูตร sqrt(sum(x^2))) แล้วหารเวกเตอร์ด้วยความยาวนี้ ให้ความยาวกลายเป็น 1
+# dim=1 คือ normalize ไปตามแต่ละแถว (แต่ละ chunk 1 แถว) ไม่ใช่รวมทั้งตาราง — เพื่อให้ dot product เท่ากับ cosine similarity
 embeddings_norm = torch.nn.functional.normalize(embeddings, p=2, dim=1)
 
 torch.save(embeddings_norm, INDEX_FILE)

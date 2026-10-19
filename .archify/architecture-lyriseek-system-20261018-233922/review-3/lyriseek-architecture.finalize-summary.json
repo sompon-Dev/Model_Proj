@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\architecture-lyriseek-system-20261018-233922\\candidate.json",
+    "sha256": "157cb749c027af896788d8ffd1948c348ec7e88a3fa952b965bdc509e7a0c229",
+    "bytes": 5668
+  },
+  "artifact": {
+    "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\architecture-lyriseek-system-20261018-233922\\lyriseek-architecture.html",
+    "sha256": "fc34eac03f33265997899a345cf654885f13902bfc7e82cdc2c6328585f2e9e8",
+    "bytes": 838155
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\architecture-lyriseek-system-20261018-233922\\review-3\\lyriseek-architecture.finalize.json",
+    "summaryReceipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\architecture-lyriseek-system-20261018-233922\\review-3\\lyriseek-architecture.finalize-summary.json",
+    "browserCheckReceipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\architecture-lyriseek-system-20261018-233922\\review-3\\lyriseek-architecture.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.1.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-18T16:39:59.019Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 3954,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  },
+  "visualReviewRecommendation": {
+    "action": "inspect-route-readability",
+    "signals": {
+      "resolvedCrossovers": 10,
+      "routesOverSuggestedBends": 6
+    },
+    "reason": "Automated gates passed, but crossings or detours still need perceptual review before claiming visual quality.",
+    "affectedRoutes": {
+      "crossings": [
+        {
+          "left": {
+            "id": "mobile-to-search",
+            "from": "mobile_app",
+            "to": "search_api",
+            "label": "POST /search",
+            "collectionIndex": 2,
+            "artifactIndex": 3
+          },
+          "right": {
+            "id": "mobile-to-stt",
+            "from": "mobile_app",
+            "to": "google_stt",
+            "label": "audio → transcript",
+            "collectionIndex": 5,
+            "artifactIndex": 6
+          },
+          "point": [
+            496,
+            72
+          ],
+          "sharedNode": "mobile_app"
+        },
+        {
+          "left": {
+            "id": "mobile-to-search",
+            "from": "mobile_app",
+            "to": "search_api",
+            "label": "POST /search",
+            "collectionIndex": 2,
+            "artifactIndex": 3
+          },
+          "right": {
+            "id": "mobile-to-youtube",
+            "from": "mobile_app",
+            "to": "youtube",
+            "label": "open link + thumbnail",
+            "collectionIndex": 6,
+            "artifactIndex": 7
+          },
+          "point": [
+            495.99999999999994,
+            85.99999999999999
+          ],
+          "sharedNode": "mobile_app"
+        },
+        {
+          "left": {
+            "id": "auth-to-supabase",
+            "from": "auth_screens",
+            "to": "supabase",
+            "label": "Auth + upsert users",
+            "collectionIndex": 3,
+            "artifactIndex": 4
+          },
+          "right": {
+            "id": "mobile-to-stt",
+            "from": "mobile_app",
+            "to": "google_stt",
+            "label": "audio → transcript",
+            "collectionIndex": 5,
+            "artifactIndex": 6
+          },
+          "point": [
+            630,
+            139
+          ]
+        },
+        {
+          "left": {
+            "id": "auth-to-supabase",
+            "from": "auth_screens",
+            "to": "supabase",
+            "label": "Auth + upsert users",
+            "collectionIndex": 3,
+            "artifactIndex": 4
+          },
+          "right": {
+            "id": "backend-to-buildindex",
+            "from": "backend_api",
+            "to": "buildindex_update",
+            "label": "update_index(csv)",
+            "collectionIndex": 9,
+            "artifactIndex": 10
+          },
+          "point": [
+            663,
+            376
+          ]
+        },
+        {
+          "left": {
+            "id": "auth-to-supabase",
+            "from": "auth_screens",
+            "to": "supabase",
+            "label": "Auth + upsert users",
+            "collectionIndex": 3,
+            "artifactIndex": 4
+          },
+          "right": {
+            "id": "buildindex-to-index",
+            "from": "buildindex_update",
+            "to": "model_index",
+            "label": "writes updated tensors",
+            "collectionIndex": 10,
+            "artifactIndex": 11
+          },
+          "point": [
+            663,
+            488
+          ]
+        },
+        {
+          "left": {
+            "id": "auth-to-google-oauth",
+            "from": "auth_screens",
+            "to": "google_oauth",
+            "label": "OAuth consent",
+            "collectionIndex": 4,
+            "artifactIndex": 5
+          },
+          "right": {
+            "id": "mobile-to-stt",
+            "from": "mobile_app",
+            "to": "google_stt",
+            "label": "audio → transcript",
+            "collectionIndex": 5,
+            "artifactIndex": 6
+          },
+          "point": [
+            744,
+            139
+          ]
+        },
+        {
+          "left": {
+            "id": "auth-to-google-oauth",
+            "from": "auth_screens",
+            "to": "google_oauth",
+            "label": "OAuth consent",
+            "collectionIndex": 4,
+            "artifactIndex": 5
+          },
+          "right": {
+            "id": "backend-to-buildindex",
+            "from": "backend_api",
+            "to": "buildindex_update",
+            "label": "update_index(csv)",
+            "collectionIndex": 9,
+            "artifactIndex": 10
+          },
+          "point": [
+            744,
+            376
+          ]
+        },
+        {
+          "left": {
+            "id": "auth-to-google-oauth",
+            "from": "auth_screens",
+            "to": "google_oauth",
+            "label": "OAuth consent",
+            "collectionIndex": 4,
+            "artifactIndex": 5
+          },
+          "right": {
+            "id": "buildindex-to-index",
+            "from": "buildindex_update",
+            "to": "model_index",
+            "label": "writes updated tensors",
+            "collectionIndex": 10,
+            "artifactIndex": 11
+          },
+          "point": [
+            717,
+            432
+          ]
+        }
+      ],
+      "detours": [
+        {
+          "relationship": {
+            "id": "auth-to-supabase",
+            "from": "auth_screens",
+            "to": "supabase",
+            "label": "Auth + upsert users",
+            "collectionIndex": 3,
+            "artifactIndex": 4
+          },
+          "bends": 4,
+          "stretch": 1.127
+        },
+        {
+          "relationship": {
+            "id": "auth-to-google-oauth",
+            "from": "auth_screens",
+            "to": "google_oauth",
+            "label": "OAuth consent",
+            "collectionIndex": 4,
+            "artifactIndex": 5
+          },
+          "bends": 5,
+          "stretch": 1.096
+        },
+        {
+          "relationship": {
+            "id": "mobile-to-stt",
+            "from": "mobile_app",
+            "to": "google_stt",
+            "label": "audio → transcript",
+            "collectionIndex": 5,
+            "artifactIndex": 6
+          },
+          "bends": 3,
+          "stretch": 1
+        },
+        {
+          "relationship": {
+            "id": "mobile-to-youtube",
+            "from": "mobile_app",
+            "to": "youtube",
+            "label": "open link + thumbnail",
+            "collectionIndex": 6,
+            "artifactIndex": 7
+          },
+          "bends": 3,
+          "stretch": 1.083
+        },
+        {
+          "relationship": {
+            "id": "buildindex-to-index",
+            "from": "buildindex_update",
+            "to": "model_index",
+            "label": "writes updated tensors",
+            "collectionIndex": 10,
+            "artifactIndex": 11
+          },
+          "bends": 3,
+          "stretch": 1.264
+        },
+        {
+          "relationship": {
+            "id": "fetchthumb-to-postgres",
+            "from": "fetch_thumbnails",
+            "to": "postgres",
+            "label": "SELECT / UPDATE Image_Link",
+            "collectionIndex": 11,
+            "artifactIndex": 12
+          },
+          "bends": 3,
+          "stretch": 1.327
+        }
+      ],
+      "truncated": true
+    },
+    "hints": [
+      "mobile_app → search_api and mobile_app → google_stt cross next to mobile_app: move node search_api or google_stt so the two reach mobile_app from different sides (for example one level with it, one directly above or below it).",
+      "mobile_app → search_api and mobile_app → youtube cross next to mobile_app: move node search_api or youtube so the two reach mobile_app from different sides (for example one level with it, one directly above or below it).",
+      "auth_screens → supabase crosses mobile_app → google_stt: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "auth_screens → supabase crosses backend_api → buildindex_update: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "auth_screens → supabase crosses buildindex_update → model_index: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "auth_screens → google_oauth crosses mobile_app → google_stt: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "auth_screens → google_oauth crosses backend_api → buildindex_update: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor.",
+      "auth_screens → google_oauth crosses buildindex_update → model_index: move the node of whichever is a branch, return, or second entrance to the other side of the main path, so that relationship runs through an empty corridor."
+    ],
+    "repair": "Trace these relationships at the desktop viewport. For Architecture, use references/architecture-layout-repair.md: reflow a blocked main path or tangled connected scene, and repair an isolated defect locally only when the surrounding composition is accepted. Preserve all semantic content and user-fixed geometry. Rerun finalize once after the edit."
+  }
+}

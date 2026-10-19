@@ -12,20 +12,26 @@ import uuid
 
 
 def _load_env():
-    """อ่านค่าจากไฟล์ .env ข้างๆ ไฟล์นี้ (ถ้ามี) เช่น DB_PASSWORD=xxxx"""
+    """อ่านค่าจากไฟล์ .env ข้างๆ ไฟล์นี้ (ถ้ามี) เช่น DB_PASSWORD=xxxx
+    เขียนเองแทนใช้ library python-dotenv — ทำหน้าที่เหมือนกันคือแยก "KEY=VALUE" แล้วตั้งเป็น
+    environment variable ให้ os.environ.get() ด้านล่างอ่านเจอทีหลัง"""
     env_file = Path(__file__).parent / ".env"
     if not env_file.exists():
         return
     for line in env_file.read_text(encoding="utf-8").splitlines():
         if "=" in line and not line.lstrip().startswith("#"):
-            key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+            key, value = line.split("=", 1)  # split("=", 1) แยกแค่ "=" ตัวแรก เผื่อ VALUE มี "=" ปนอยู่
+            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))  # setdefault: ตั้งค่าก็ต่อเมื่อยังไม่มีตัวแปรนี้มาก่อน ไม่ทับของเดิม
 
 
 _load_env()
 
 app = FastAPI()
 
+# CORS (Cross-Origin Resource Sharing): ปกติเบราว์เซอร์/แอปจะยิง request ข้าม origin (เช่นจาก
+# แอป React Native ไปที่ server คนละ host/port) ไม่ได้ถ้า server ไม่อนุญาตไว้ก่อน
+# allow_origins=["*"] คือ "อนุญาตทุก origin" allow_methods/allow_headers=["*"] คือ "อนุญาตทุก HTTP
+# method/header" — เปิดกว้างสุดเพื่อให้พัฒนา/ทดสอบง่าย แต่ไม่ควรใช้ค่านี้ตอน deploy ใช้งานจริง
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,8 +54,15 @@ def get_connection():
     return psycopg2.connect(**DB_CONFIG)
 
 
+# CryptContext จาก passlib จัดการ hash รหัสผ่านให้ (เก็บ hash ไม่เก็บรหัสผ่านตัวจริงลง DB)
+# schemes=["bcrypt"]: ใช้อัลกอริทึม bcrypt (ออกแบบมาเพื่อ hash รหัสผ่านโดยเฉพาะ ช้าโดยตั้งใจเพื่อให้เดารหัสยาก)
+# deprecated="auto": ถ้าในอนาคตเปลี่ยน scheme ใหม่ รหัสผ่านเก่าที่ hash ด้วย scheme เดิมยังตรวจสอบได้อยู่
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# BaseModel (จาก pydantic) ใช้นิยามรูปแบบข้อมูลที่รับเข้ามาทาง endpoint แต่ละคลาสด้านล่างนี้คือ
+# "แบบฟอร์ม" 1 ใบ บอก FastAPI ว่า field ไหนชื่ออะไร ชนิดอะไร (str, int, EmailStr ฯลฯ)
+# พอมีคนยิง request เข้ามา FastAPI จะเช็ก type ให้เองอัตโนมัติ ถ้าข้อมูลไม่ตรงจะตอบ error กลับไปเลย
+# ไม่ต้องเขียนโค้ดเช็กมือ — EmailStr คือ str ที่ pydantic เช็กฟอร์แมตอีเมลให้ด้วยว่าถูกต้องไหม
 #
 class UserData(BaseModel):
     username: str
@@ -70,10 +83,30 @@ class UpdateTrain_SongData(BaseModel):
     newsong_artist:str
     newsong_lyrics:str
 
+# ใช้คู่กับหน้า UpdateModel.js: admin ติ๊กเลือกเพลงจาก Train_Song ได้หลายเพลง ส่ง newsong_id มาเป็น list
+class UpdateModelData(BaseModel):
+    newsong_ids: list[int]
+
 class SongData(BaseModel):
     song_name: str
     spotify_Link:str
     youtube_link:str
+
+# ใช้คู่กับหน้า Homeuser.js ตอนค้นหาผ่านโมเดล Ver.5 (ผลลัพธ์มีแค่ song_name ไม่มี song_id เพราะ
+# โมเดลไม่เชื่อมกับ database) ส่งชื่อเพลงที่เจอมาเป็น list แล้วให้ไปหา song_id/youtube_link จริงให้
+class SongNamesData(BaseModel):
+    song_names: list[str]
+
+# ใช้คู่กับหน้า AddSong.js ของแอดมิน: เพิ่มเพลง 1 เพลงให้ครบทุกตาราง (Song, Genre_Song, Mood_Song,
+# Train_Song) ในคำขอเดียว — song_genre/song_mood เป็น list เพราะแอดมินติ๊กเลือกได้หลายอันจากหน้าฟอร์ม
+class AddSongData(BaseModel):
+    song_name: str
+    artist: str
+    lyric: str
+    song_genre: list[str] = []
+    song_mood: list[str] = []
+    youtube_link: str = ""
+    spotify_link: str = ""
 
 class Update_SongData(BaseModel):
     song_name: str
@@ -146,23 +179,32 @@ class UpdateTrendingSongData(BaseModel):
     trend_one_month: int
     trend_one_year: int
 
+# ใช้คู่กับหน้า MostSearch.js ของแอดมิน: แอดมินติ๊กเลือกเพลงได้สูงสุด 2 เพลง (เช็คจำนวนไว้ฝั่งแอป)
+# แล้วกด Add เพื่อตั้งเป็นเพลงแนะนำ (trend_add = true) ไปโชว์ใน "For You" ของหน้า Homeuser.js
+class AddRecommendData(BaseModel):
+    trend_song_ids: list[int]
+
 
 # ---------- เพิ่มข้อมูล ตาราง users ----------
+# @app.post("/users") คือ decorator บอก FastAPI ว่า "ถ้ามีคน POST มาที่ /users ให้เรียกฟังก์ชันนี้"
+# data: UserData บอกให้ FastAPI แปลง JSON body ที่ส่งมาเป็น object UserData ให้อัตโนมัติ (พร้อมเช็ก type)
+# รูปแบบนี้ (decorator + ฟังก์ชัน + get_connection + RETURNING + commit + close + return dict) ซ้ำกัน
+# แทบทุกตารางด้านล่างทั้งไฟล์ — คอมเมนต์ตรงนี้อธิบายละเอียดครั้งเดียว ตารางอื่นจะมีแค่คอมเมนต์สั้นๆชี้กลับมา
 @app.post("/users")
 def create_user(data: UserData):
-    hashed_password = pwd_context.hash(data.password)
+    hashed_password = pwd_context.hash(data.password)  # แปลงรหัสผ่านดิบเป็น hash ก่อนเก็บ (ย้อนกลับเป็นรหัสเดิมไม่ได้ ตรวจสอบได้แต่อ่านค่าจริงไม่ได้)
 
     conn = get_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)  # RealDictCursor: ให้แต่ละแถวที่ query ได้มาเป็น dict (เช่น row["user_id"]) แทน tuple (row[0])
     cursor.execute(
         'INSERT INTO "User" (username, email, password) VALUES (%s, %s, %s) RETURNING user_id',
         (data.username, data.email, hashed_password),
     )
-    new_id = cursor.fetchone()["user_id"]
-    conn.commit()
-    conn.close()
+    new_id = cursor.fetchone()["user_id"]  # RETURNING user_id ให้ Postgres ส่ง id ที่มันสร้างให้อัตโนมัติ (SERIAL) กลับมาในคำสั่ง INSERT เดียวกัน ไม่ต้อง SELECT แยกอีกรอบ
+    conn.commit()  # ยืนยันบันทึกการเปลี่ยนแปลงลงฐานข้อมูลจริง (ถ้าไม่เรียกจะไม่ถูกบันทึกจริง)
+    conn.close()   # ปิดการเชื่อมต่อเสมอหลังใช้งานเสร็จ กันการเชื่อมต่อค้าง
 
-    return {"status": "success", "users_id": new_id}
+    return {"status": "success", "users_id": new_id}  # แค่ return dict ธรรมดา FastAPI แปลงเป็น JSON ส่งกลับไปให้เอง
 
 
 # ---------- /register คือ URL ชื่อเดิมที่ Register.jsx เรียกอยู่ ----------
@@ -185,6 +227,8 @@ def read_users():
 
 
 # ---------- อ่านข้อมูลคนเดียว ตาราง users ----------
+# {user_id} ใน path ของ decorator ผูกกับ parameter user_id: int ของฟังก์ชันอัตโนมัติ — ถ้ามีคนเรียก
+# GET /users/5 แปลว่า user_id จะเท่ากับ 5 เลย (FastAPI แปลงจาก string ใน URL เป็น int ให้ตามชนิดที่ประกาศ)
 @app.get("/users/{user_id}")
 def read_user(user_id: int):
     conn = get_connection()
@@ -245,7 +289,7 @@ def delete_user(user_id: int):
 
 @app.post("/Train_Song")
 def create_Train_Song(data:Train_SongData):
-    
+
 
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -262,6 +306,9 @@ def create_Train_Song(data:Train_SongData):
 
 # ---------- /register คือ URL ชื่อเดิมที่ Register.jsx เรียกอยู่ ----------
 # ให้ทำงานเหมือนกับ /users เป๊ะๆ แค่คนละชื่อ URL ตาราง users
+# ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 5): endpoint นี้ประกาศ @app.post("/Train_Song") ซ้ำกับ
+# create_Train_Song ด้านบน — FastAPI ใช้ตัวที่ประกาศก่อนเสมอเวลา path ชนกัน ฟังก์ชันนี้จึงไม่ถูกเรียกจริง
+# (ไม่ error แค่เป็นโค้ดที่ไม่มีผล) ไม่แก้ตอนนี้เพื่อคงพฤติกรรมเดิมไว้ก่อน
 @app.post("/Train_Song")
 def register_newsong(data: Train_SongData):
     return create_Train_Song(data)
@@ -279,11 +326,74 @@ def read_Train_Song():
     return {"status": "success", "data": Train_Song}
 
 
+# ---------- หน้า UpdateModel.js ของแอดมินเรียก endpoint นี้: เอาเพลงที่ติ๊กไว้ไปเทรนเข้าโมเดล Ver.5 ----------
+# ต้องประกาศ route คงที่นี้ไว้ "ก่อน" /Train_Song/{newsong_id} ด้านล่าง ไม่งั้น FastAPI จะจับคู่คำว่า
+# "update_model" เข้ากับ newsong_id (ซึ่งเป็น int) แล้ว error ไปก่อนถึง route นี้ (เหมือน /Genre/unique)
+@app.post("/Train_Song/update_model")
+def update_model_with_selected_songs(data: UpdateModelData):
+    """ขั้นตอน: (1) ดึงเพลงที่ admin ติ๊กไว้จากตาราง Train_Song (2) เขียนเป็น update_dataset.csv
+    ชั่วคราวใน Ver.5/ (3) เรียก BuildindexUpdate.update_index() ให้โมเดลรู้จักเพลงใหม่พวกนี้ (เพิ่ม
+    chunk/embedding เข้า index เดิม ไม่ต้องเทรนใหม่ทั้งหมด) (4) ลบเฉพาะเพลงที่เพิ่งเทรนไปออกจาก
+    Train_Song และลบไฟล์ csv ทิ้ง — เพลงที่ admin ไม่ได้ติ๊กยังอยู่ใน Train_Song เหมือนเดิม
+    หมายเหตุ: ขั้นตอนนี้ช้า (โหลดโมเดล E5 + encode) request จะค้างรอจนกว่าจะเสร็จ"""
+    if not data.newsong_ids:
+        return {"status": "error", "error": "ไม่ได้เลือกเพลงเลย"}
+
+    import sys
+    from pathlib import Path
+    import pandas as pd
+
+    ver5_path = Path(__file__).parent.parent / "Ver.5"
+    sys.path.insert(0, str(ver5_path))
+    from BuildindexUpdate import update_index  # noqa: E402  (deferred import กัน circular/ไม่จำเป็นต้องใช้ตอน server เริ่มทำงาน)
+
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        'SELECT newsong_id, newsong_name, newsong_artist, newsong_lyrics FROM "Train_Song" WHERE newsong_id = ANY(%s)',
+        (data.newsong_ids,),
+    )
+    rows = cursor.fetchall()
+
+    if not rows:
+        conn.close()
+        return {"status": "error", "error": "ไม่พบเพลงที่เลือกในตาราง Train_Song"}
+
+    csv_path = ver5_path / "update_dataset.csv"
+    df = pd.DataFrame(rows)[["newsong_name", "newsong_artist", "newsong_lyrics"]]
+    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    print(f"[UpdateModel] เขียน {len(df)} เพลงลง {csv_path} แล้ว กำลังอัปเดตโมเดล...")
+
+    try:
+        result = update_index(
+            csv_path,
+            ver5_path / "chunks_embeddings.pt",
+            ver5_path / "chunks_metadata.pkl",
+        )
+    except Exception as e:
+        conn.close()
+        print(f"[UpdateModel] อัปเดตโมเดลไม่สำเร็จ: {e} (ไม่ลบอะไรออกจาก Train_Song ไว้ลองใหม่ได้)")
+        return {"status": "error", "error": f"อัปเดตโมเดลไม่สำเร็จ: {e}"}
+
+    trained_ids = [row["newsong_id"] for row in rows]
+    cursor.execute('DELETE FROM "Train_Song" WHERE newsong_id = ANY(%s)', (trained_ids,))
+    conn.commit()
+    conn.close()
+
+    csv_path.unlink(missing_ok=True)
+    print(f"[UpdateModel] ลบ {len(trained_ids)} เพลงออกจาก Train_Song และลบไฟล์ {csv_path.name} แล้ว")
+
+    return {"status": "success", "trained_song_ids": trained_ids, **result}
+
+
 # ---------- อ่านข้อมูลคนเดียว ตาราง users ----------
 @app.get("/Train_Song/{newsong_id}")
 def read_Train_Song(newsong_id: int):
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    # ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 1): query นี้ไปค้นตาราง "User" ผิด (น่าจะคัดลอก
+    # มาจากส่วน users แล้วลืมแก้) ที่ถูกต้องควรเป็น FROM "Train_Song" WHERE newsong_id — ไม่แก้ตอนนี้
+    # เพื่อคงพฤติกรรมเดิมไว้ก่อน
     cursor.execute(
         'SELECT newsong_id, newsong_name, newsong_artist FROM "User" WHERE user_id = %s',
         (newsong_id,),
@@ -299,6 +409,9 @@ def read_Train_Song(newsong_id: int):
 def update_Train_Song(newsong_id: int, data: UpdateTrain_SongData):
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    # ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 2): ชื่อคอลัมน์ผิด (username, email ไม่มีในตาราง
+    # Train_Song — ที่ถูกต้องควรเป็น newsong_name, newsong_artist WHERE newsong_id) และยังไม่ได้อัปเดต
+    # เนื้อร้อง (newsong_lyrics) เลย ไม่แก้ตอนนี้เพื่อคงพฤติกรรมเดิมไว้ก่อน
     cursor.execute(
         'UPDATE "Train_Song" SET username = %s, email = %s WHERE user_id = %s',
         (data.newsong_name, data.newsong_artist, newsong_id),
@@ -310,6 +423,9 @@ def update_Train_Song(newsong_id: int, data: UpdateTrain_SongData):
 
 
 # ---------- ลบข้อมูล ตาราง users ----------
+# หมายเหตุ: ฟังก์ชันนี้ตั้งชื่อ delete_user ซ้ำกับฟังก์ชันลบ User ด้านบน (และ Song ด้านล่างก็ใช้ชื่อนี้อีก)
+# ทำงานได้ถูกต้องเพราะ FastAPI ผูก endpoint ไว้กับ decorator ตอนไฟล์ถูกอ่านไปแล้ว ไม่ได้ผูกกับชื่อฟังก์ชัน
+# แต่ชื่อซ้ำแบบนี้ทำให้อ่านโค้ดสับสนว่ากำลังดูฟังก์ชันไหนอยู่ (ดู Document.md ส่วนที่ 3 "เรื่องอื่นที่ควรรู้")
 @app.delete("/Train_Song/{newsong_id}")
 def delete_user(newsong_id: int):
     conn = get_connection()
@@ -345,8 +461,28 @@ def create_Song(data:SongData):
     return {"status": "success", "song_id": song_id}
 
 
+# ---------- หน้า AddSong.js ของแอดมินเรียก endpoint นี้: เพิ่มเพลง 1 เพลงให้ครบทุกตารางในคำขอเดียว ----------
+# ใช้ฟังก์ชัน Add_song จาก AddSong.py (เขียนไว้แยกไฟล์อยู่แล้ว ไม่ต้องเขียนใหม่)
+# import แบบ deferred (อยู่ในฟังก์ชัน ไม่อยู่บนสุดไฟล์) เพราะ AddSong.py เองก็ import get_connection
+# กลับมาจาก main.py นี้ — ถ้า import ไว้บนสุดจะเกิด circular import (สองไฟล์ import กันไปมา
+# ตอนเริ่มโหลด) แต่พอ import ตอนถูกเรียกใช้งานจริง main.py โหลดเสร็จสมบูรณ์แล้ว จึงไม่มีปัญหา
+@app.post("/AddSong")
+def create_song_full(data: AddSongData):
+    from AddSong import Add_song
+
+    song_genre_str = ", ".join(data.song_genre)
+    song_mood_str = ", ".join(data.song_mood)
+
+    return Add_song(
+        data.song_name, data.artist, song_genre_str,
+        data.youtube_link, data.spotify_link, song_mood_str, data.lyric,
+    )
+
+
 # ---------- /register คือ URL ชื่อเดิมที่ Register.jsx เรียกอยู่ ----------
 # ให้ทำงานเหมือนกับ /users เป๊ะๆ แค่คนละชื่อ URL ตาราง users
+# ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 5): endpoint นี้ประกาศ @app.post("/Song") ซ้ำกับ
+# create_Song ด้านบน — FastAPI ใช้ตัวที่ประกาศก่อนเสมอ ฟังก์ชันนี้จึงไม่ถูกเรียกจริง ไม่แก้ตอนนี้
 @app.post("/Song")
 def register_song(data: SongData):
     return create_Song(data)
@@ -364,11 +500,79 @@ def read_Song():
     return {"status": "success", "data": Song}
 
 
+# ---------- อ่านรายชื่อเพลงตาม genre ที่ user ติ๊กมาจากหน้า Filter ----------
+# ต้องประกาศ route คงที่นี้ไว้ "ก่อน" /Song/{song_id} ด้านล่าง ไม่งั้น FastAPI จะจับคู่คำว่า
+# "by_genre" เข้ากับ song_id (ซึ่งเป็น int) แล้ว error ไปก่อนถึง route นี้
+@app.get("/Song/by_genre")
+def read_Song_by_genre(genre_ids: str):
+    """รับ genre_ids เป็น string คั่นด้วยจุลภาค เช่น "1,13" (มาจาก genre_id ที่ user ติ๊กไว้)
+    ขั้นที่ 1: หา song_id ทั้งหมดในตาราง Genre_Song ที่ genre_id ตรงกับที่ส่งมา
+    ขั้นที่ 2: เอา song_id ที่ได้ไปดึงข้อมูลเพลงจริงจากตาราง Song กลับไปให้ frontend"""
+    try:
+        genre_id_list = [int(g) for g in genre_ids.split(",") if g.strip()]
+    except ValueError:
+        return {"status": "error", "message": "genre_ids ต้องเป็นตัวเลขคั่นด้วยจุลภาค เช่น 1,13"}
+
+    if not genre_id_list:
+        return {"status": "success", "data": []}
+
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    # ขั้นที่ 1: genre_id -> song_id (ANY(%s) คือ "เท่ากับตัวใดตัวหนึ่งใน list นี้")
+    cursor.execute(
+        'SELECT DISTINCT song_id FROM "Genre_Song" WHERE genre_id = ANY(%s)',
+        (genre_id_list,),
+    )
+    song_id_list = [row["song_id"] for row in cursor.fetchall()]
+
+    if not song_id_list:
+        conn.close()
+        return {"status": "success", "data": []}
+
+    # ขั้นที่ 2: song_id -> ข้อมูลเพลงจริง (รวม "Artist" ด้วย หลังจากเพิ่มคอลัมน์นี้เข้า Song แล้ว)
+    # LIMIT 200: genre ยอดนิยม (เช่น "thai" มีเพลงกว่า 5,000 เพลง) ถ้าไม่จำกัดจะส่งข้อมูลมหาศาล
+    # กลับไปให้แอป render ทีเดียวหมด ทำให้แอปค้าง — 200 เพลงแรกพอสำหรับโชว์ผลลัพธ์แล้ว
+    cursor.execute(
+        'SELECT song_id, song_name, "Artist", spotify_Link, youtube_link FROM "Song" '
+        'WHERE song_id = ANY(%s) ORDER BY song_id LIMIT 200',
+        (song_id_list,),
+    )
+    songs = cursor.fetchall()
+    conn.close()
+
+    return {"status": "success", "data": songs}
+
+
+# ---------- หน้า Homeuser.js เรียก endpoint นี้หลังค้นหาผ่านโมเดล Ver.5 ----------
+# ผลลัพธ์จากโมเดลมีแค่ song_name/artist (ข้อความ) ไม่มี song_id เพราะโมเดลไม่เชื่อมกับ database เลย
+# endpoint นี้รับชื่อเพลงที่เจอมาเป็น list แล้วไปหาใน Song ว่าชื่อนี้ song_id/youtube_link คืออะไร
+# (เทียบด้วยชื่อเพลงเท่านั้น เพราะตาราง Song ไม่มีคอลัมน์ artist — ถ้ามีเพลงชื่อซ้ำกันคนละศิลปิน
+# อาจจับคู่ผิดเพลงได้ เป็นข้อจำกัดที่รู้อยู่แล้ว)
+@app.post("/Song/by_names")
+def read_Song_by_names(data: SongNamesData):
+    if not data.song_names:
+        return {"status": "success", "data": []}
+
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        'SELECT song_id, song_name, youtube_link FROM "Song" WHERE song_name = ANY(%s)',
+        (data.song_names,),
+    )
+    songs = cursor.fetchall()
+    conn.close()
+
+    return {"status": "success", "data": songs}
+
+
 # ---------- อ่านข้อมูลคนเดียว ตาราง Song ----------
 @app.get("/Song/{song_id}")
 def read_Song(song_id: int):
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    # ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 3): query นี้ไปค้นตาราง "User" ผิด ที่ถูกต้อง
+    # ควรเป็น FROM "Song" WHERE song_id — ไม่แก้ตอนนี้เพื่อคงพฤติกรรมเดิมไว้ก่อน
     cursor.execute(
         'SELECT song_id, song_name, spotify_Link, youtube_link FROM "User" WHERE song_id = %s',
         (song_id,),
@@ -380,6 +584,9 @@ def read_Song(song_id: int):
 
 
 # ---------- แก้ไขข้อมูล ตาราง users ----------
+# ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 4): path เขียนเป็นตัวพิมพ์เล็ก "/song/{song_id}"
+# ขณะที่ endpoint อื่นของตาราง Song ใช้ "/Song/{song_id}" (ตัวพิมพ์ใหญ่) ทำให้ URL ไม่ตรงกัน และ
+# WHERE user_id ก็ผิด (ตาราง Song ไม่มีคอลัมน์ user_id ควรเป็น WHERE song_id) ไม่แก้ตอนนี้
 @app.put("/song/{song_id}")
 def update_Song(song_id: int, data: Update_SongData):
     conn = get_connection()
@@ -395,6 +602,8 @@ def update_Song(song_id: int, data: Update_SongData):
 
 
 # ---------- ลบข้อมูล ตาราง users ----------
+# หมายเหตุ: ชื่อฟังก์ชัน delete_user ซ้ำกับตัวลบ User/Train_Song ด้านบน — ทำงานถูกต้องเพราะ decorator
+# ผูก endpoint ไว้แล้วตอนไฟล์ถูกอ่าน แต่ชื่อซ้ำทำให้อ่านสับสนว่ากำลังดูของตารางไหน
 @app.delete("/Song/{song_id}")
 def delete_user(song_id: int):
     conn = get_connection()
@@ -428,13 +637,52 @@ def create_Genre(data: GenreData):
 # ---------- อ่านข้อมูลทั้งหมด ตาราง Genre ----------
 @app.get("/Genre")
 def read_Genre():
+    """เรียงจาก genre ที่มีเพลงเยอะสุดไปน้อยสุด (ใช้โชว์ในหน้า Filter ของ Homeuser.js)
+    LEFT JOIN กับ Genre_Song แล้วนับจำนวนเพลงต่อ genre — genre ที่ไม่มีเพลงเลยจะนับเป็น 0 (ไม่หายไปจากลิสต์)"""
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute('SELECT genre_id, genre_name FROM "Genre" ORDER BY genre_id')
+    cursor.execute(
+        'SELECT g.genre_id, g.genre_name, COUNT(gs.song_id) AS song_count '
+        'FROM "Genre" g LEFT JOIN "Genre_Song" gs ON gs.genre_id = g.genre_id '
+        'GROUP BY g.genre_id, g.genre_name '
+        'ORDER BY song_count DESC, g.genre_name'
+    )
     genres = cursor.fetchall()
     conn.close()
 
     return {"status": "success", "data": genres}
+
+
+Genre_List_all = []   # เก็บรายชื่อ genre ทั้งหมดในตาราง Genre (ไม่ซ้ำ) ไว้ในตัวแปรนี้ โหลดครั้งเดียวตอนเปิด server
+
+
+def load_genre_list_all():
+    """ดึง genre_name ทั้งหมดจากตาราง Genre แบบไม่ซ้ำ (DISTINCT) เก็บไว้ในตัวแปร Genre_List_all
+    ให้ endpoint ด้านล่างเอาไปตอบ frontend ได้ โดยไม่ต้อง query ฐานข้อมูลใหม่ทุกครั้งที่มีคนเรียก"""
+    global Genre_List_all   # บอกว่าจะแก้ตัวแปร Genre_List_all ที่อยู่ระดับไฟล์ ไม่ใช่สร้างตัวแปรใหม่ในฟังก์ชันนี้
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT genre_name FROM "Genre" ORDER BY genre_name')
+        Genre_List_all = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        print(f"โหลด Genre_List_all สำเร็จ: {len(Genre_List_all)} genre")
+    except Exception as e:
+        print(f"[!] โหลด Genre_List_all ไม่ได้: {e}")
+
+
+load_genre_list_all()   # เรียกทันทีตอนไฟล์นี้ถูก import (คือตอนสั่ง uvicorn main:app) ให้มีข้อมูลพร้อมอยู่ในตัวแปรก่อนมีใครเรียก endpoint ด้านล่าง
+
+
+# ---------- อ่านรายชื่อ genre ทั้งหมดแบบไม่ซ้ำ (ให้ frontend ดึงไปใช้ได้) ----------
+# ต้องประกาศ route คงที่นี้ไว้ "ก่อน" /Genre/{genre_id} ด้านล่าง ไม่งั้น FastAPI จะจับคู่คำว่า
+# "unique" เข้ากับ {genre_id} (ที่ต้องเป็นเลขจำนวนเต็ม) ก่อน แล้วตอบ error 422 กลับไปทันที
+# (เป็นบั๊กแบบเดียวกับที่ Document.md เคยพบใน endpoint "/…/all" ด้านล่างไฟล์นี้)
+@app.get("/Genre/unique")
+def read_unique_genre_names():
+    """ส่งค่าจากตัวแปร Genre_List_all ที่โหลดไว้แล้วตอนเปิด server กลับไปให้ frontend
+    ไม่ต้อง query ฐานข้อมูลใหม่ทุกครั้งที่มีคนเรียก endpoint นี้"""
+    return {"status": "success", "data": Genre_List_all}
 
 
 # ---------- อ่านข้อมูลอันเดียว ตาราง Genre ----------
@@ -568,9 +816,15 @@ def create_Mood(data: MoodData):
 # ---------- อ่านข้อมูลทั้งหมด ตาราง Mood ----------
 @app.get("/Mood")
 def read_Mood():
+    """เรียงจาก mood ที่มีเพลงเยอะสุดไปน้อยสุด (หลักการเดียวกับ /Genre ด้านบน)"""
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute('SELECT mood_id, mood_name FROM "Mood" ORDER BY mood_id')
+    cursor.execute(
+        'SELECT m.mood_id, m.mood_name, COUNT(ms.song_id) AS song_count '
+        'FROM "Mood" m LEFT JOIN "Mood_Song" ms ON ms.mood_id = m.mood_id '
+        'GROUP BY m.mood_id, m.mood_name '
+        'ORDER BY song_count DESC, m.mood_name'
+    )
     moods = cursor.fetchall()
     conn.close()
 
@@ -865,16 +1119,106 @@ def create_trending_song(data: TrendingSongData):
 # ---------- อ่านข้อมูลทั้งหมด ตาราง trending_song ----------
 @app.get("/trending_song")
 def read_trending_songs():
+    """JOIN กับตาราง Song เพิ่ม เพื่อเอา Image_Link มาโชว์รูปเพลงในหน้า MostSearch.js ของแอดมิน
+    (แทนกล่องสี่เหลี่ยมเทาๆ placeholder เดิม)
+    เรียงลำดับ: เพลงที่ trend_add = true (ติ๊กเป็นเพลงแนะนำไว้แล้ว) ขึ้นก่อนเสมอ (อันดับ 1-2)
+    ที่เหลือเรียงตาม trend_alltime มากไปน้อย (อันดับ 3 เป็นต้นไป)"""
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cursor.execute(
-        'SELECT trend_song_id, song_id, trend_song_name, trend_alltime, trend_one_week, trend_one_month, trend_one_year '
-        'FROM "trending_song" ORDER BY trend_song_id'
+        'SELECT t.trend_song_id, t.song_id, t.trend_song_name, t.trend_alltime, t.trend_one_week, '
+        't.trend_one_month, t.trend_one_year, t.trend_add, s."Image_Link" '
+        'FROM "trending_song" t LEFT JOIN "Song" s ON s.song_id = t.song_id '
+        'ORDER BY t.trend_add DESC, t.trend_alltime DESC'
     )
     trending_songs = cursor.fetchall()
     conn.close()
 
     return {"status": "success", "data": trending_songs}
+
+
+# ---------- หน้า Result.js เรียก endpoint นี้ตอน user กดไอคอน YouTube: นับเพลงนี้เข้า trending ----------
+# ต้องประกาศ route คงที่นี้ไว้ "ก่อน" /trending_song/{trend_song_id} ด้านล่าง ไม่งั้น FastAPI จะจับคู่
+# คำว่า "increment" เข้ากับ trend_song_id (ซึ่งเป็น int) แล้ว error ไปก่อนถึง route นี้ (เหมือน /Genre/unique)
+@app.post("/trending_song/increment")
+def increment_trending_song(song_id: int):
+    """ถ้าเพลงนี้ (song_id) ยังไม่เคยอยู่ใน trending_song ให้สร้างแถวใหม่ (ทุกค่าเริ่มที่ 1)
+    ถ้ามีอยู่แล้วให้ +1 ทั้ง trend_alltime, trend_one_week, trend_one_month, trend_one_year
+    (trend_alltime ไม่มีการรีเซ็ต ส่วน week/month/year จะถูกรีเซ็ตเป็น 0 เองตามรอบโดย scheduled job
+    ด้านล่างของไฟล์นี้ — ดู reset_weekly_trend/reset_monthly_trend/reset_yearly_trend)"""
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    cursor.execute('SELECT trend_song_id FROM "trending_song" WHERE song_id = %s', (song_id,))
+    existing = cursor.fetchone()
+
+    if existing:
+        cursor.execute(
+            'UPDATE "trending_song" SET trend_alltime = trend_alltime + 1, '
+            'trend_one_week = trend_one_week + 1, trend_one_month = trend_one_month + 1, '
+            'trend_one_year = trend_one_year + 1 WHERE trend_song_id = %s',
+            (existing["trend_song_id"],),
+        )
+        conn.commit()
+        conn.close()
+        return {"status": "success", "trend_song_id": existing["trend_song_id"]}
+
+    # เพลงนี้ยังไม่เคยถูกนับเลย ต้องไปหาชื่อเพลงจากตาราง Song มาเก็บไว้ใน trend_song_name ด้วย
+    cursor.execute('SELECT song_name FROM "Song" WHERE song_id = %s', (song_id,))
+    song = cursor.fetchone()
+    if not song:
+        conn.close()
+        return {"status": "error", "error": f"ไม่พบเพลง song_id={song_id} ในตาราง Song"}
+
+    cursor.execute(
+        'INSERT INTO "trending_song" '
+        '(song_id, trend_song_name, trend_alltime, trend_one_week, trend_one_month, trend_one_year) '
+        'VALUES (%s, %s, 1, 1, 1, 1) RETURNING trend_song_id',
+        (song_id, song["song_name"]),
+    )
+    new_id = cursor.fetchone()["trend_song_id"]
+    conn.commit()
+    conn.close()
+
+    return {"status": "success", "trend_song_id": new_id}
+
+
+# ---------- หน้า MostSearch.js กด Add แล้วเรียก endpoint นี้: ตั้งเพลงที่ติ๊กไว้เป็นเพลงแนะนำ ----------
+@app.post("/trending_song/add_recommend")
+def add_recommend(data: AddRecommendData):
+    """เพลงที่ติ๊กไว้รอบนี้ "แทนที่" ชุดเพลงแนะนำเดิมทั้งหมด ไม่ใช่เพิ่มสะสมไปเรื่อยๆ:
+    ขั้นที่ 1 เคลียร์ trend_add = false ให้ทุกแถวก่อน ขั้นที่ 2 ค่อยตั้ง true ให้เฉพาะแถวที่ติ๊กไว้รอบนี้"""
+    if not data.trend_song_ids:
+        return {"status": "error", "error": "ไม่ได้เลือกเพลงเลย"}
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE "trending_song" SET trend_add = FALSE')
+    cursor.execute(
+        'UPDATE "trending_song" SET trend_add = TRUE WHERE trend_song_id = ANY(%s)',
+        (data.trend_song_ids,),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"status": "success", "trend_song_ids": data.trend_song_ids}
+
+
+# ---------- หน้า Homeuser.js เรียก endpoint นี้โชว์ใน "For You": เอาเพลงที่ trend_add = true ----------
+@app.get("/trending_song/recommended")
+def read_recommended_trending_songs():
+    """JOIN กับ Song เอาชื่อเพลง/ศิลปิน/รูปมาด้วย เฉพาะแถวที่แอดมินกด Add ไว้ (trend_add = true)"""
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        'SELECT t.trend_song_id, t.song_id, s.song_name, s."Artist", s."Image_Link" '
+        'FROM "trending_song" t JOIN "Song" s ON s.song_id = t.song_id '
+        'WHERE t.trend_add = TRUE ORDER BY t.trend_song_id'
+    )
+    songs = cursor.fetchall()
+    conn.close()
+
+    return {"status": "success", "data": songs}
 
 
 # ---------- อ่านข้อมูลอันเดียว ตาราง trending_song ----------
@@ -923,6 +1267,10 @@ def delete_trending_song(trend_song_id: int):
 
 
 # ---------- ลบข้อมูลทั้งหมด ตาราง User ----------
+# ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 6): endpoint "/…/all" ทั้งหมดในส่วนนี้ประกาศอยู่
+# "หลัง" @app.delete("/users/{user_id}") ที่รับเลขจำนวนเต็ม — FastAPI จับคู่ URL ตามลำดับที่ประกาศ
+# ก่อน-หลัง คำว่า "all" จึงน่าจะถูกจับคู่กับ {user_id} (ซึ่งคาดหวังเป็นเลข) ก่อน แล้วขึ้น error 422
+# เพราะ "all" ไม่ใช่เลข ถ้าจะแก้ให้ย้ายกลุ่ม "/all" ทั้งหมดไปประกาศก่อนกลุ่ม "/{id}" แต่ไม่แก้ตอนนี้
 @app.delete("/users/all")
 def delete_all_users():
     conn = get_connection()

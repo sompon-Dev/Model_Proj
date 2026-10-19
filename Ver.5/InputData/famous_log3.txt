@@ -1,0 +1,5 @@
+เพลงเป้าหมาย (เจอ link ไม่เจอ genre) 2200 | ทำไปแล้ว 2870 (ข้าม) | เหลือ 0
+
+
+เสร็จแล้ว! ดัง 0 | ไม่ดัง 0 | หายอดวิวไม่ได้ 0 | ช้า 0 | 0.0 นาที
+บันทึกที่: C:\Users\usEr\Documents\Wokr\Thesis\Ver.4\InputData\famous.csv, C:\Users\usEr\Documents\Wokr\Thesis\Ver.4\InputData\nonfamous.csv, C:\Users\usEr\Documents\Wokr\Thesis\Ver.4\InputData\view_failed.csv

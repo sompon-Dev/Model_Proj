@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Lyriseek",
+    "slug": "Lyriseek",
+    "version": "1.0.0",
+    "scheme": "lyriseek",
+    "android": {
+      "package": "com.lyriseek.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-web-browser",
+      "expo-audio",
+      "expo-asset"
+    ]
+  }
+}

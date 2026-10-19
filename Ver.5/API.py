@@ -1,6 +1,11 @@
+import sys
 import json
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI  # FastAPI คือ framework สร้าง web API: ประกาศ endpoint ด้วย decorator (@app.post/@app.get) แล้ว FastAPI จัดการรับ-ส่ง HTTP/JSON ให้อัตโนมัติ (อธิบายละเอียดใน Document.md หัวข้อ 0.1)
+
+# บนเครื่อง Windows ที่ locale เป็นไทย terminal มักใช้ codepage cp874 ซึ่งพิมพ์ emoji (📩📤) ไม่ได้
+# ถ้าไม่ตั้งค่านี้ก่อน print() บรรทัดที่มี emoji ด้านล่างจะ error (UnicodeEncodeError) ทุกครั้งที่มีคนค้นหา
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+from pydantic import BaseModel  # BaseModel ใช้นิยามรูปแบบข้อมูลที่รับเข้ามา — FastAPI จะเช็ก type ให้เองว่าตรงตามที่ประกาศไว้ ถ้าไม่ตรงจะตอบ error กลับไปอัตโนมัติ ไม่ต้องเช็กมือ
 from Search import search  # ดึงฟังก์ชันค้นหาเดิมของคุณมาใช้
 
 # 1. สร้างตัวแปรแอปพลิเคชัน FastAPI
@@ -15,6 +20,8 @@ class QueryRequest(BaseModel):
     text: str
 
 # 3. สร้าง Endpoint สำหรับการค้นหา
+# @app.post("/search") คือ decorator บอก FastAPI ว่า "ถ้ามีคนยิง HTTP POST มาที่ /search ให้เรียกฟังก์ชันข้างล่างนี้"
+# payload: QueryRequest บอก FastAPI ให้แปลง JSON body ที่ส่งมาเป็น object QueryRequest ให้อัตโนมัติ (พร้อมเช็ก type)
 @app.post("/search")
 def run_search(payload: QueryRequest):
     # ดึงคำค้นหาออกมา
@@ -34,6 +41,7 @@ def run_search(payload: QueryRequest):
     # ----------------------------------------
     
     # ส่งผลลัพธ์กลับไปเป็น JSON อัตโนมัติ
+    # แค่ return dict ธรรมดา FastAPI จะแปลงเป็น JSON ส่งกลับไปให้เอง ไม่ต้องเรียก json.dumps() ตรงนี้เอง
     return {"status": "success", "results": results}
 
 # 4. สั่งรัน Server ด้วย uvicorn

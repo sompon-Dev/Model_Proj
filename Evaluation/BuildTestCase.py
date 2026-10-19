@@ -20,6 +20,9 @@ import random
 import sys
 from pathlib import Path
 
+# sys.path.insert(0, ...) เติม folder Ver.4 เข้าไปในรายการที่ Python ใช้ค้นหาไฟล์ตอน import
+# ทำแบบนี้เพราะ textproc.py อยู่ใน Ver.4 ไม่ใช่ folder เดียวกับไฟล์นี้ (Evaluation/)
+# insert(0, ...) ใส่ไว้ตำแหน่งแรกสุด ให้ Python หาเจอก่อนที่อื่น
 sys.path.insert(0, str(Path(__file__).parent.parent / "Ver.4"))
 from textproc import preprocess
 
@@ -35,10 +38,13 @@ MAX_WORDS   = 10
 V4_SAMPLE_N = 75   # อยู่ในช่วง 70-80 ตามที่ขอ
 SEED        = 42
 
+# list comprehension: สร้างชื่อคอลัมน์ "เนื้อเพลง10คำ"..."เนื้อเพลง1คำ" อัตโนมัติจากตัวเลข ไม่ต้องเขียนทีละชื่อ
 FIELDNAMES = ["Song name", "artist"] + [f"เนื้อเพลง{n}คำ" for n in range(MAX_WORDS, 0, -1)]
 
 
 def main():
+    # random.Random(SEED) สร้างตัวสุ่มของตัวเองแยกจากตัวสุ่มกลางของโมดูล random
+    # ให้ seed ตัวเลขเดิมทุกครั้ง -> สุ่มได้ผลลัพธ์เดิมซ้ำได้ (reproducible) ไม่ใช่สุ่มใหม่ทุกครั้งที่รัน
     rng = random.Random(SEED)
 
     # รวมเพลงใหม่จากทั้ง 2 ไฟล์ ตัดซ้ำด้วย (name, artist) แบบเดียวกับ Ver.5/Buildindex.py
@@ -49,7 +55,7 @@ def main():
             rows = list(csv.DictReader(f))
         added = 0
         for row in rows:
-            key = (row["name"], row["artist"])
+            key = (row["name"], row["artist"])  # ใช้ tuple (ชื่อเพลง, ศิลปิน) เป็น key เดียว เพราะชื่อเพลงซ้ำกันได้ข้ามศิลปิน ต้องเช็กคู่กันถึงจะถือว่าเป็นเพลงเดียวกันจริง
             if key in seen:
                 continue
             seen.add(key)
@@ -93,7 +99,7 @@ def main():
         w.writerows(out_rows)
     print(f"✓ บันทึก {OUT_FULL} ({len(out_rows)} แถว) — เพลงทั้งหมด ไว้ทดสอบโมเดลที่มีเพลงครบ (Ver.5)")
 
-    sample = rng.sample(out_rows, min(V4_SAMPLE_N, len(out_rows)))
+    sample = rng.sample(out_rows, min(V4_SAMPLE_N, len(out_rows)))  # rng.sample สุ่มหยิบแบบไม่ซ้ำ (ไม่มีแถวไหนถูกหยิบสองรอบ) ต่างจาก rng.choice ที่สุ่มได้ซ้ำ
     with open(OUT_V4, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDNAMES)
         w.writeheader()

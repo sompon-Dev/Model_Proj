@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "05f5858a-14c9-4d07-9b58-ab691addb1c3",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\architecture-lyriseek-system-20261018-233922\\candidate.json",
+  "output": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\architecture-lyriseek-system-20261018-233922\\lyriseek-architecture.html",
+  "specification": {
+    "sha256": "157cb749c027af896788d8ffd1948c348ec7e88a3fa952b965bdc509e7a0c229",
+    "bytes": 5668
+  },
+  "artifact": {
+    "sha256": "fc34eac03f33265997899a345cf654885f13902bfc7e82cdc2c6328585f2e9e8",
+    "bytes": 838155
+  }
+}

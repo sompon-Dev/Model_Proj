@@ -13,13 +13,14 @@ node_modules/
 .expo/
 npm-debug.log*
 
-# ─── โมเดล/ดัชนีที่สร้างใหม่ได้จาก Buildindex.py (ไม่ใช่ source code) ───
+# ─── โมเดล/ดัชนีของ Ver.3/Ver.4 (เวอร์ชันเก่าที่เลิกใช้แล้ว สร้างใหม่ได้จาก Buildindex.py) ───
 Ver.3/songs_embeddings.pt
 Ver.3/songs_metadata.pkl
 Ver.4/chunks_embeddings.pt
 Ver.4/chunks_metadata.pkl
-Ver.5/chunks_embeddings.pt
-Ver.5/chunks_metadata.pkl
+
+# Ver.5/chunks_embeddings.pt และ Ver.5/chunks_metadata.pkl (โมเดลที่ใช้งานจริง) เอาเข้า git ผ่าน
+# Git LFS แล้ว (ดู .gitattributes) จึงไม่ gitignore สองไฟล์นี้อีกต่อไป
 
 # ─── ไฟล์ข้อมูล/ผลลัพธ์ขนาดใหญ่ที่สร้างจากสคริปต์ใน Ver.4/InputData (ไม่ใช่ source code) ───
 Ver.4/InputData/thai_songs_30000_merged.xls

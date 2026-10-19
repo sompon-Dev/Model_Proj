@@ -21,6 +21,6 @@ for song, artist in SAMPLE_SONGS:
     print()
 
 print("=== ทดสอบแบบใส่แค่ชื่อเพลง (ไม่บอกศิลปิน ให้ระบบเดาเอง) ===\n")
-for song, _artist in SAMPLE_SONGS:
+for song, _artist in SAMPLE_SONGS:  # ตั้งชื่อ _artist (ขีดเส้นใต้นำหน้า) เป็นธรรมเนียมบอกว่า "ตัวแปรนี้จงใจไม่ใช้" ในลูปนี้
     get_genre(song)
     print()

@@ -19,6 +19,11 @@ STRIDE = 1
 
 
 def make_chunks(lines):
+    """ตัด list ของบรรทัดเป็นหน้าต่างเลื่อน (sliding window): หยิบทีละ WINDOW บรรทัดติดกัน
+    แล้วเลื่อนจุดเริ่มไปทีละ STRIDE บรรทัด ทำให้แต่ละหน้าต่างทับซ้อนกันบางส่วน (ถ้า STRIDE < WINDOW)
+    ตัวอย่าง WINDOW=2, STRIDE=1, บรรทัด [A,B,C,D] -> chunk ["A B","B C","C D"]
+    range(0, len(lines) - WINDOW + 1, STRIDE): "+1" กันพลาดชนขอบ ให้หน้าต่างสุดท้ายยังมีครบ WINDOW บรรทัดเสมอ
+    ไม่ใช่หยิบแค่บรรทัดเดียวทิ้งท้าย"""
     if len(lines) <= WINDOW:
         return [" ".join(lines)]
     return [" ".join(lines[i:i + WINDOW]) for i in range(0, len(lines) - WINDOW + 1, STRIDE)]
@@ -57,6 +62,8 @@ embeddings = model.encode(
 print(f"\nแปลงสำเร็จ! ขนาด vector: {embeddings.shape}")  # (จำนวน chunk, 768)
 
 # L2 Normalize เพื่อให้ dot product = cosine similarity
+# p=2 คือใช้ L2 norm (ความยาวเวกเตอร์แบบปกติ สูตร sqrt(sum(x^2))) แล้วหารเวกเตอร์ด้วยความยาวนี้ ให้ความยาวกลายเป็น 1
+# dim=1 คือ normalize ไปตามแต่ละแถว (แต่ละ chunk 1 แถว) ไม่ใช่รวมทั้งตาราง
 embeddings_norm = torch.nn.functional.normalize(embeddings, p=2, dim=1)
 
 torch.save(embeddings_norm, INDEX_FILE)

@@ -26,9 +26,14 @@ from pathlib import Path
 import pandas as pd
 import yt_dlp
 
+# parents[2] ไต่ folder ขึ้นไป 2 ชั้นจากไฟล์นี้ (InputData -> Ver.4 -> Thesis) เพื่อหา root ของโปรเจกต์
 ROOT = Path(__file__).resolve().parents[2]
+# เติม folder Link_Fetcher เข้า sys.path (รายการที่ Python ใช้หาไฟล์ตอน import) เพราะ Links.py
+# อยู่คนละ folder กับไฟล์นี้ — insert(0, ...) ใส่ไว้อันดับแรกให้หาเจอก่อน
 sys.path.insert(0, str(ROOT / "Link_Fetcher"))
 from Links import get_links  # noqa: E402  (Link_Fetcher)
+# "noqa: E402" คือ comment บอก linter (ตัวเช็คสไตล์โค้ด) ว่า "รู้ว่า import นี้ไม่อยู่บนสุดของไฟล์ตามธรรมเนียม
+# แต่ตั้งใจ ไม่ต้องเตือน" — เพราะ import นี้ต้องมาหลัง sys.path.insert ข้างบน ไม่งั้นจะหา Links.py ไม่เจอ
 
 BASE_PATH    = Path(__file__).parent
 INPUT_FILE   = BASE_PATH / "thai_songs_30000_merged.xls"   # ไว้ดึง lyric กลับมา (ไฟล์เดิมไม่มีเก็บ)
@@ -81,6 +86,8 @@ def enrich_one(title, artist, lyric):
         return False, {"reason": "หา link ใหม่ไม่เจอ (ผลต่างจากรอบก่อน)"}
 
     try:
+        # yt_dlp.YoutubeDL(...) เป็น context manager (ใช้กับ with) จะปิด/คืนทรัพยากรให้เองตอนออกจาก block
+        # extract_info(url, download=False) ไปอ่านข้อมูลหน้าวิดีโอ (ไม่โหลดไฟล์วิดีโอจริง) แล้วคืน dict ข้อมูล
         with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
             info = ydl.extract_info(url, download=False)
         views = info.get("view_count")
@@ -95,11 +102,12 @@ def enrich_one(title, artist, lyric):
 
 
 def load_lyrics():
+    # pandas DataFrame: อ่าน CSV เป็นตารางในหน่วยความจำ เลือกได้ทีละหลายคอลัมน์ด้วย df[[...]]
     df = pd.read_csv(INPUT_FILE, encoding="utf-8-sig")
-    df[["Title", "Artist", "Lyric"]] = df[["Title", "Artist", "Lyric"]].fillna("")
+    df[["Title", "Artist", "Lyric"]] = df[["Title", "Artist", "Lyric"]].fillna("")  # .fillna("") เติมช่องที่เป็นค่าว่าง/NaN ด้วยสตริงเปล่า กันพังตอนเอาไปต่อสตริงทีหลัง
     lyrics = {}
-    for row in df.itertuples():
-        lyrics.setdefault((row.Title, row.Artist), row.Lyric)   # เก็บตัวแรกถ้าซ้ำ
+    for row in df.itertuples():  # .itertuples() วนทีละแถวของ DataFrame โดยเข้าถึงคอลัมน์แบบ row.ชื่อคอลัมน์ (เร็วกว่า .iterrows())
+        lyrics.setdefault((row.Title, row.Artist), row.Lyric)   # dict.setdefault(key, value): ถ้า key ยังไม่มีค่อยตั้งค่าให้ ถ้ามีอยู่แล้วจะไม่ทับ -> เก็บตัวแรกถ้าซ้ำ
     return lyrics
 
 
@@ -144,6 +152,11 @@ def main():
     famous_n = nonfamous_n = failed_n = timeout_n = 0
     t_start = time.time()
 
+    # ThreadPoolExecutor สร้าง "pool" ของ worker thread ไว้ล่วงหน้า (จำนวน WORKERS ตัว) แล้วแจกงานให้ทำพร้อมกัน
+    # pool.submit(fn, ...) ส่งงานเข้า pool ทันทีแบบไม่รอ (non-blocking) คืนกลับมาเป็น "Future" object
+    # ซึ่งเป็นเหมือนใบเสร็จที่จะมีผลลัพธ์โผล่มาทีหลังตอนงานเสร็จ — ไม่ใช่ผลลัพธ์จริงในตอนนั้นเลย
+    # ที่นี่ไม่ใช้ concurrent.futures.wait()/as_completed() ตรงๆ เพราะต้องเช็ก timeout รายตัวเองด้วย
+    # (futures[fut] เก็บเวลาที่ submit ไว้คู่กัน) จึงวนเช็คสถานะเองด้วย f.done() ทุกรอบแทน
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         song_iter = iter(pending)
         futures = {}
@@ -163,13 +176,13 @@ def main():
 
         while futures:
             now = time.time()
-            finished = [f for f in futures if f.done()]
+            finished = [f for f in futures if f.done()]  # .done() เช็กว่างานนี้ทำเสร็จหรือยัง (ไม่บล็อกรอ)
             timed_out = [f for f in futures if not f.done() and now - futures[f][2] > TIMEOUT_SEC]
 
             for f in finished:
                 title, artist, _ = futures.pop(f)
                 try:
-                    ok, data = f.result()
+                    ok, data = f.result()  # .result() ดึงค่าที่ enrich_one คืนมา (งานเสร็จแล้วแน่นอนเพราะเช็ก .done() มาก่อนหน้านี้แล้ว)
                 except Exception as e:
                     ok, data = False, {"reason": f"error: {e}"}
 

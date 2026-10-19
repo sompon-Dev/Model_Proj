@@ -1,0 +1,2 @@
+Ver.5/chunks_embeddings.pt filter=lfs diff=lfs merge=lfs -text
+Ver.5/chunks_metadata.pkl filter=lfs diff=lfs merge=lfs -text

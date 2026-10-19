@@ -31,7 +31,7 @@ for artist_folder in sorted(INPUT_PATH.iterdir()):
     artist_name = artist_folder.name  # ชื่อ folder = ชื่อศิลปิน
 
     for txt_file in sorted(artist_folder.glob("*.txt")):
-        song_name = txt_file.stem      # ชื่อไฟล์ (ไม่มี .txt) = ชื่อเพลง
+        song_name = txt_file.stem      # .stem เป็น property ของ Path ตัดนามสกุลไฟล์ออกให้อัตโนมัติ (เช่น "เพลงA.txt" → "เพลงA")
         lyrics    = txt_file.read_text(encoding="utf-8").replace("\n", " ").strip()
 
         rows.append({
@@ -47,6 +47,8 @@ for artist_folder in sorted(INPUT_PATH.iterdir()):
 # บันทึกเป็น CSV
 # ─────────────────────────────────────────────
 with open(OUTPUT_FILE, "w", encoding="utf-8-sig", newline="") as f:
+    # csv.DictWriter เขียนจาก list ของ dict ได้ตรงๆ โดยจับคู่ key ของ dict กับชื่อคอลัมน์ใน fieldnames ให้เอง
+    # ไม่ต้องแปลง dict เป็น list ก่อนเขียนทีละแถวแบบ csv.writer ธรรมดา
     writer = csv.DictWriter(f, fieldnames=["lyrics_tokens", "song_name", "artist"])
     writer.writeheader()
     writer.writerows(rows)

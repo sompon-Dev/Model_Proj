@@ -47,7 +47,11 @@ def build_queries():
             name, artist, lines = rng.choice([s for s in songs if len(s[2]) >= n_lines])
             start = rng.randrange(len(lines) - n_lines + 1)
             toks = " ".join(lines[start:start + n_lines]).split()
+            # list comprehension พร้อม "or" ต่อท้าย: สุ่มทิ้งคำออกทีละคำ (จำลองคนจำเนื้อเพลงไม่ครบ)
+            # ถ้าทิ้งจนเหลือ list เปล่า (falsy) "or toks[:1]" จะใช้คำแรกแทน กันเหลือคำค้นว่างเปล่าไปเลย
             toks = [t for t in toks if rng.random() >= drop] or toks[:1]
+            # conditional expression ในนี้คือ "สุ่มคำจาก vocab ทั้งหมดมาแทนที่ ถ้าทอยเต่าได้ < swap" ต่อคำ
+            # (จำลองคนจำเนื้อเพลงผิดเป็นคำอื่น) ไม่ใช่ครบทุกคำ — swap ยิ่งสูงยิ่งมีคำผิดเยอะ
             toks = [rng.choice(vocab) if rng.random() < swap else t for t in toks]  # จำผิดเป็นคำอื่น
             out.append(("".join(toks), name, artist))
         return out
@@ -74,6 +78,8 @@ def make_v3_search():
     model = SentenceTransformer("intfloat/multilingual-e5-base")
 
     def search(q, top_k=11):
+        # เหมือน Ver.3/Search.py: encode คำค้น -> normalize (dim=0 เพราะเป็นเวกเตอร์เดี่ยว) -> คูณเมทริกซ์
+        # กับ embedding ทุกเพลง (cosine similarity ของทุกเพลงพร้อมกัน) -> topk ดึง k อันดับบนสุด (คะแนน+ตำแหน่ง)
         v = torch.nn.functional.normalize(model.encode(q, convert_to_tensor=True), p=2, dim=0)
         s, idx = torch.topk(torch.matmul(emb, v), k=min(top_k, emb.shape[0]))
         return [{"song_name": meta[i]["song_name"], "artist": meta[i]["artist"]} for i in idx.tolist()]
@@ -85,6 +91,10 @@ def main():
     if (V3_PATH / "songs_embeddings.pt").exists():
         engines["Ver.3"] = make_v3_search()
     for name, w in (("dense", 1.0), ("tfidf", 0.0), ("hybrid", Search.W_DENSE)):
+        # "w=w" ใน lambda ไม่ใช่ typo — นี่คือวิธีแก้ปัญหาคลาสสิกของ Python: ถ้าเขียนแค่ "lambda q: Search.search(q, ..., w_dense=w)"
+        # ตัวแปร w ใน lambda จะไปอ้างอิงตัวแปร w ของ loop ตรงๆ (closure) พอ loop ทำงานจบแล้ว w จะเหลือค่าสุดท้ายของ loop
+        # ทำให้ lambda ทุกตัวใน dict นี้ใช้ w ตัวเดียวกัน (ค่าสุดท้าย) ผิดเพี้ยนหมด การเขียน w=w (default argument)
+        # บังคับให้ lambda "จำ" ค่า w ของรอบนั้นๆไว้เป็นของตัวเองตอนสร้าง ไม่ใช่ไปอ้างอิงตัวแปรภายนอกที่เปลี่ยนค่าได้
         engines[name] = lambda q, w=w: Search.search(q, top_k=11, w_dense=w)
 
     sets = build_queries()
@@ -94,7 +104,11 @@ def main():
     for set_name, queries in sets.items():
         for eng_name, fn in engines.items():
             ranks = [rank_of(fn(q), n, a) for q, n, a in queries]
+            # top(k) นิยามเป็น lambda ใช้แค่ในลูปรอบนี้: นับว่ากี่ query ที่เพลงถูกต้องอยู่ในอันดับ <= k
+            # หารด้วยจำนวน query ทั้งหมด = สัดส่วน (เช่น Top-1 = สัดส่วนที่เพลงถูกเจออันดับ 1 พอดี)
             top = lambda k: sum(1 for r in ranks if r and r <= k) / len(ranks)
+            # MRR (Mean Reciprocal Rank): เฉลี่ยของ 1/อันดับ ของทุก query ที่เจอ (r ที่เป็น None/ไม่เจอ ถูกกรองออกด้วย "if r")
+            # ยิ่งเจอเร็ว (อันดับน้อย) 1/r ยิ่งเข้าใกล้ 1 ยิ่งไม่เจอเลยไม่ถูกนับเข้าค่าเฉลี่ยนี้
             mrr = sum(1 / r for r in ranks if r) / len(ranks)
             print(f"{set_name:<19} {eng_name:<8} {top(1):>7.1%} {top(3):>7.1%} {top(5):>7.1%} {mrr:>7.3f}")
         print()

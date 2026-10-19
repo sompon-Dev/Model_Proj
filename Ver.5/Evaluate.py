@@ -23,13 +23,14 @@ def _load_module(name, file_path, extra_syspath):
     """โหลด Search.py ของ Ver.4 กับ Ver.5 แยกกันแบบไม่ชนกัน — ถ้าใช้ import Search ตรงๆ
     ทั้งคู่จะชื่อโมดูล 'Search' เหมือนกัน ตัวที่ import ทีหลังจะได้โมดูลตัวแรกที่ cache ไว้แทน
     (ไม่ใช่โมดูลใหม่) จึงต้องโหลดจาก path ตรงๆ ด้วย importlib แทน"""
-    old_syspath = list(sys.path)
+    old_syspath = list(sys.path)   # เก็บ sys.path เดิมไว้ก่อน จะคืนกลับทีหลังไม่ว่าจะสำเร็จหรือพัง (finally)
     sys.path.insert(0, str(extra_syspath))   # ให้ Search.py หา textproc.py ของตัวเองเจอ
     try:
-        spec = importlib.util.spec_from_file_location(name, file_path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[name] = module
-        spec.loader.exec_module(module)
+        # ขั้นตอนโหลดโมดูลจาก path ไฟล์ตรงๆ (ไม่ผ่าน import ปกติ) มี 4 ก้าว:
+        spec = importlib.util.spec_from_file_location(name, file_path)  # 1) สร้าง "สเปค" อธิบายว่าโมดูลนี้ชื่ออะไร อยู่ไฟล์ไหน (ยังไม่ได้รันโค้ดในไฟล์)
+        module = importlib.util.module_from_spec(spec)  # 2) สร้าง module object เปล่าๆ ตามสเปคนั้น (ยังไม่มีตัวแปร/ฟังก์ชันข้างในเลย)
+        sys.modules[name] = module  # 3) ลงทะเบียนโมดูลนี้ใน sys.modules ด้วยชื่อ "name" ที่เราตั้งเอง (เช่น "search_v4"/"search_v5") แยกจากชื่อไฟล์จริง "Search" กันชนกัน
+        spec.loader.exec_module(module)  # 4) รันโค้ดทั้งไฟล์จริงๆ ตอนนี้ ใส่ตัวแปร/ฟังก์ชันทุกตัวที่ไฟล์สร้างเข้าไปใน module object นี้
         return module
     finally:
         sys.path[:] = old_syspath
@@ -64,8 +65,9 @@ def build_old_queries():
             name, artist, lines = rng.choice([s for s in songs if len(s[2]) >= n_lines])
             start = rng.randrange(len(lines) - n_lines + 1)
             toks = " ".join(lines[start:start + n_lines]).split()
+            # "or toks[:1]" กันเหลือ list คำค้นเปล่าถ้าทิ้งคำออกหมด (ใช้คำแรกแทน)
             toks = [t for t in toks if rng.random() >= drop] or toks[:1]
-            toks = [rng.choice(vocab) if rng.random() < swap else t for t in toks]
+            toks = [rng.choice(vocab) if rng.random() < swap else t for t in toks]  # จำลองจำผิดเป็นคำอื่นแบบสุ่ม ตามสัดส่วน swap
             out.append(("".join(toks), name, artist))
         return out
 
@@ -124,8 +126,8 @@ def run(label, engines, sets):
     for set_name, queries in sets.items():
         for eng_name, fn in engines.items():
             ranks = [rank_of(fn(q), n, a) for q, n, a in queries]
-            top = lambda k: sum(1 for r in ranks if r and r <= k) / len(ranks)
-            mrr = sum(1 / r for r in ranks if r) / len(ranks)
+            top = lambda k: sum(1 for r in ranks if r and r <= k) / len(ranks)  # สัดส่วน query ที่เจอเพลงถูกต้องในอันดับ <= k
+            mrr = sum(1 / r for r in ranks if r) / len(ranks)  # Mean Reciprocal Rank: เฉลี่ย 1/อันดับ ของที่เจอ (ไม่เจอ/None ถูกกรองออก)
             print(f"{set_name:<10} {eng_name:<8} {top(1):>7.1%} {top(3):>7.1%} {top(5):>7.1%} {mrr:>7.3f}")
         print()
 

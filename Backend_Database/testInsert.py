@@ -1,4 +1,11 @@
-
+"""
+testInsert.py
+สคริปต์ทดสอบด้วยมือ (manual) — ลองเพิ่มข้อมูล 1 แถวในทุกตารางของฐานข้อมูลจริง
+import ฟังก์ชัน create_* (ตัวจัดการ endpoint ของ FastAPI ใน main.py) มาเรียกตรงๆแบบฟังก์ชัน Python
+ธรรมดา ไม่ได้ยิง HTTP request ผ่าน uvicorn/FastAPI เลย — เรียกได้เพราะ create_user(data) ก็เป็น
+แค่ฟังก์ชัน Python ปกติ (แค่มี @app.post(...) ประดับไว้ด้านบนให้ FastAPI รู้จักตอนรันเป็น server)
+กด Run ไฟล์นี้ตรงๆ จะเขียนข้อมูลจริงลง DB ที่ main.py เชื่อมต่ออยู่ ไม่มี mock/cleanup อัตโนมัติ
+"""
 from main import (
     create_user, UserData,
     create_Train_Song, Train_SongData,
@@ -84,4 +91,4 @@ if __name__ == "__main__":
         try:
             test_func()
         except Exception as e:
-            print(f"[{name}] insert FAILED: {e!r}")
+            print(f"[{name}] insert FAILED: {e!r}")  # {e!r} ใน f-string ใช้ repr() ของ error (รายละเอียดดิบ) แทน str() (ข้อความสั้นอ่านง่าย)
