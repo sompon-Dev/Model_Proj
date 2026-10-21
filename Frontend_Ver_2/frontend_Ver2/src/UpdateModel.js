@@ -12,8 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const TRAIN_SONG_URL = 'http://192.168.1.5:8000/Train_Song'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
-const UPDATE_MODEL_URL = 'http://192.168.1.5:8000/Train_Song/update_model'; // ⚠️ IP เดียวกับ TRAIN_SONG_URL
+const TRAIN_SONG_URL = 'https://lyriseek-api-database.onrender.com/Train_Song'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
+const UPDATE_MODEL_URL = 'https://lyriseek-api-database.onrender.com/Train_Song/update_model'; // ⚠️ IP เดียวกับ TRAIN_SONG_URL
 
 // เรียก fetch พร้อม timeout กันหน้าค้างถ้า server ไม่ตอบ (เหมือนที่ทำไว้ใน Homeuser.js/AddSong.js)
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {

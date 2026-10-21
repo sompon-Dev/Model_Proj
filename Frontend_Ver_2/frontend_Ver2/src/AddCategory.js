@@ -13,8 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const GENRE_URL = 'http://192.168.1.5:8000/Genre'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
-const MOOD_URL = 'http://192.168.1.5:8000/Mood'; // ⚠️ IP เดียวกับ GENRE_URL
+const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
+const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood'; // ⚠️ IP เดียวกับ GENRE_URL
 
 // เรียก fetch พร้อม timeout กันหน้าค้างถ้า server ไม่ตอบ (เหมือนที่ทำไว้ใน Homeuser.js/AddSong.js)
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const TRENDING_INCREMENT_URL = 'http://192.168.1.5:8000/trending_song/increment'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
+const TRENDING_INCREMENT_URL = 'https://lyriseek-api-database.onrender.com/trending_song/increment'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
 
 const Result = ({ navigation, route }) => {
     // State ready for future database / search query results

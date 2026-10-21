@@ -57,12 +57,12 @@ const GOOGLE_AUDIO_CONFIG =
         ? { encoding: 'LINEAR16', sampleRateHertz: 16000 }
         : { encoding: 'AMR_WB', sampleRateHertz: 16000 };
 
-const GENRE_URL = 'http://192.168.1.5:8000/Genre'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง (ส่งกลับมาเป็น genre_id + genre_name)
-const MOOD_URL = 'http://192.168.1.5:8000/Mood'; // ⚠️ IP เดียวกับ GENRE_URL (ส่งกลับมาเป็น mood_id + mood_name)
-const SONG_BY_GENRE_URL = 'http://192.168.1.5:8000/Song/by_genre'; // ⚠️ IP เดียวกับ GENRE_URL (Backend_Database/main.py พอร์ต 8000)
-const SEARCH_URL = 'http://192.168.1.5:8002/search'; // ⚠️ IP เดียวกัน แต่คนละพอร์ต — นี่คือ Ver.5/API.py (ตัวโมเดลค้นหา พอร์ต 8002)
-const SONG_BY_NAMES_URL = 'http://192.168.1.5:8000/Song/by_names'; // ⚠️ IP เดียวกับ GENRE_URL
-const RECOMMENDED_URL = 'http://192.168.1.5:8000/trending_song/recommended'; // ⚠️ IP เดียวกับ GENRE_URL (เพลงที่แอดมินกด Add ไว้ใน MostSearch.js)
+const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง (ส่งกลับมาเป็น genre_id + genre_name)
+const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood'; // ⚠️ IP เดียวกับ GENRE_URL (ส่งกลับมาเป็น mood_id + mood_name)
+const SONG_BY_GENRE_URL = 'https://lyriseek-api-database.onrender.com/Song/by_genre'; // ⚠️ IP เดียวกับ GENRE_URL (Backend_Database/main.py พอร์ต 8000)
+const SEARCH_URL = 'https://sompon-dev--lyriseek-search-web.us-east.modal.run/search'; // Ver.5/API.py deploy อยู่บน Modal (ดู Ver.5/modal_app.py)
+const SONG_BY_NAMES_URL = 'https://lyriseek-api-database.onrender.com/Song/by_names'; // ⚠️ IP เดียวกับ GENRE_URL
+const RECOMMENDED_URL = 'https://lyriseek-api-database.onrender.com/trending_song/recommended'; // ⚠️ IP เดียวกับ GENRE_URL (เพลงที่แอดมินกด Add ไว้ใน MostSearch.js)
 
 const Homeuser = ({ navigation }) => {
     const [searchQuery, setSearchQuery] = useState('');

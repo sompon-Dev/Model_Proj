@@ -12,8 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const TRENDING_SONG_URL = 'http://192.168.1.5:8000/trending_song'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
-const ADD_RECOMMEND_URL = 'http://192.168.1.5:8000/trending_song/add_recommend'; // ⚠️ IP เดียวกับ TRENDING_SONG_URL
+const TRENDING_SONG_URL = 'https://lyriseek-api-database.onrender.com/trending_song'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
+const ADD_RECOMMEND_URL = 'https://lyriseek-api-database.onrender.com/trending_song/add_recommend'; // ⚠️ IP เดียวกับ TRENDING_SONG_URL
 
 const MAX_SELECT = 2; // ติ๊กเลือกเพลงแนะนำได้สูงสุดกี่เพลง
 
