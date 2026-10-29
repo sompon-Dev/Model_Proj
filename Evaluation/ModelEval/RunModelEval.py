@@ -1,9 +1,12 @@
 """
 RunModelEval.py
 อ่าน TestModel.csv (1000 เพลง x คอลัมน์ "ตัวอย่างเพลงNคำ" N=1..20) แล้วสำหรับคำค้นแต่ละคอลัมน์
-เอาไปถามโมเดลค้นหาของ Ver.5 เหมือนพิมพ์ในแอปจริง ให้คืนลิสต์มา top_k=50 เพลง แล้วเช็กว่าเพลงที่
-ถูกต้อง (ชื่อเพลง/ชื่อศิลปินของแถวนั้น) อยู่อันดับที่เท่าไหร่ บันทึกเลขอันดับ (1-50) ลงคอลัมน์
-"ผลของเนื้อเพลงNคำ" — ถ้าไม่ติด Top 50 บันทึกเป็น 0
+เอาไปถามโมเดลค้นหาของ Ver.5 เหมือนพิมพ์ในแอปจริง แล้วเช็กว่าเพลงที่ถูกต้อง (ชื่อเพลง/ชื่อศิลปินของ
+แถวนั้น) อยู่อันดับที่เท่าไหร่จากเพลงทั้งหมดในโมเดล บันทึกอันดับจริงลงคอลัมน์ "ผลของเนื้อเพลงNคำ"
+(1 = เจอเป็นอันดับแรก, 120 = อันดับที่ 120 ไม่ตัดที่ Top 50 แล้ว)
+
+อันดับคำนวณแบบเดียวกับ search(): คะแนนของเพลง = คะแนน chunk ที่ดีที่สุดของเพลงนั้น
+อันดับ = จำนวนเพลงที่คะแนนสูงกว่าเพลงที่ถูกต้อง + 1 (ถ้าคะแนนเท่ากันพอดี นับเพลงที่ถูกต้องอยู่ก่อน)
 
 รันทั้งหมด 3 รอบ ด้วยค่า w_dense ต่างกัน (เปลี่ยนแค่สัดส่วนถ่วงน้ำหนัก dense/lexical ตรรกะ
 การให้คะแนนที่เหลือเหมือน search() ใน Search.py เป๊ะ):
@@ -27,6 +30,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
+# ตอน redirect output ลงไฟล์ Windows ใช้ cp874 ซึ่งพิมพ์ ✓ ไม่ได้ แล้วสคริปต์จะพังกลางทาง
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 BASE_PATH  = Path(__file__).parent
 VER5_PATH  = BASE_PATH.parent.parent / "Ver.5"
 TESTMODEL  = BASE_PATH / "TestModel.csv"
@@ -36,8 +42,6 @@ QUERY_COLS  = [f"ตัวอย่างเพลง{n}คำ" for n in range(1
 RESULT_COLS = [f"ผลของเนื้อเพลง{n}คำ" for n in range(1, MAX_WORDS + 1)]
 
 BATCH_SIZE = 300
-TOP_K = 50
-NOT_IN_TOP_K = 0   # ไม่ติด Top 50 (ตามที่ยืนยันไว้ — ค่าตัวเลข ไม่ใช่ string กันปนกับอันดับจริง)
 
 RUNS = [
     ("DenseEval.csv",   1.0),
@@ -66,23 +70,11 @@ def _song_key_to_idx(sm):
     return {(s["song_name"], s["artist"]): i for i, s in enumerate(sm.songs)}
 
 
-def _rank_in_top_k(song_idx_per_chunk, order_col, target_song_idx):
-    seen = set()
-    for i in order_col:
-        song_idx = int(song_idx_per_chunk[i])
-        if song_idx in seen:
-            continue
-        seen.add(song_idx)
-        if song_idx == target_song_idx:
-            return len(seen)
-        if len(seen) >= TOP_K:
-            break
-    return None
-
-
 def batch_ranks(sm, queries, targets, song_idx_per_chunk, key_to_idx, w_dense):
     from textproc import preprocess
 
+    n_songs = len(sm.songs)
+    chunk_song = torch.from_numpy(song_idx_per_chunk).long()
     results = []
     for start in range(0, len(queries), BATCH_SIZE):
         batch_q = queries[start:start + BATCH_SIZE]
@@ -101,12 +93,17 @@ def batch_ranks(sm, queries, targets, song_idx_per_chunk, key_to_idx, w_dense):
         )
 
         scores = w_dense * dense + (1 - w_dense) * lexical
-        order = scores.argsort(dim=0, descending=True).numpy()
 
-        for j in range(len(batch_q)):
-            target_song_idx = key_to_idx.get(batch_t[j])
-            rank = _rank_in_top_k(song_idx_per_chunk, order[:, j], target_song_idx)
-            results.append(rank if rank is not None else NOT_IN_TOP_K)
+        # คะแนนของแต่ละเพลง = max ของคะแนนทุก chunk ในเพลงนั้น (shape: n_songs x batch)
+        index = chunk_song.unsqueeze(1).expand_as(scores)
+        song_scores = torch.full((n_songs, scores.shape[1]), float("-inf")).scatter_reduce(
+            0, index, scores, reduce="amax"
+        )
+
+        target_idx = torch.tensor([key_to_idx[t] for t in batch_t])
+        target_scores = song_scores[target_idx, torch.arange(len(batch_q))]
+        ranks = (song_scores > target_scores).sum(dim=0) + 1
+        results.extend(ranks.tolist())
 
         done = start + len(batch_q)
         print(f"    {done}/{len(queries)}", flush=True)
@@ -143,9 +140,9 @@ def main():
                 r[result_col] = rank
 
             found1 = sum(1 for r in ranks if r == 1)
-            not_found = sum(1 for r in ranks if r == NOT_IN_TOP_K)
-            print(f"  '{query_col}': เจออันดับ 1 พอดี {found1}/{len(rows)} | "
-                  f"ไม่ติด Top {TOP_K}: {not_found}/{len(rows)}", flush=True)
+            over50 = sum(1 for r in ranks if r > 50)
+            print(f"  '{query_col}': อันดับ 1 พอดี {found1}/{len(rows)} | "
+                  f"อันดับเกิน 50: {over50}/{len(rows)} | อันดับแย่สุด: {max(ranks)}", flush=True)
 
         with open(out_path, "w", encoding="utf-8-sig", newline="") as f:
             w = csv.DictWriter(f, fieldnames=fieldnames)
