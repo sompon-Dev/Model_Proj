@@ -40,6 +40,8 @@ DatasetInput/*.csv.bak*
 Evaluation/*.csv
 Evaluation/*.csv.bak
 Evaluation/*.txt
+Evaluation/ModelEval/*.csv
+Evaluation/ModelEval/*.txt
 Evaluation/BigTest/
 Evaluation/smallTest/*.csv
 Evaluation/smallTest/*.txt
