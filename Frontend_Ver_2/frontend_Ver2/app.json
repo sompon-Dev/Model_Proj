@@ -20,7 +20,8 @@
       "expo-sqlite",
       "expo-web-browser",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "expo-status-bar"
     ]
   }
 }
