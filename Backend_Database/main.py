@@ -184,6 +184,12 @@ class UpdateTrendingSongData(BaseModel):
 class AddRecommendData(BaseModel):
     trend_song_ids: list[int]
 
+# ใช้คู่กับ Result.js / Homeuser.js (For You) / History.js: ผู้ใช้กดเปิดเพลงใน YouTube Music
+# user_id คือ users_id (uuid) ของผู้ใช้ใน Supabase — คนละ database กับที่นี่ จึงผูก foreign key ไม่ได้
+class HistoryData(BaseModel):
+    user_id: uuid.UUID
+    song_id: int
+
 
 # ---------- เพิ่มข้อมูล ตาราง users ----------
 # @app.post("/users") คือ decorator บอก FastAPI ว่า "ถ้ามีคน POST มาที่ /users ให้เรียกฟังก์ชันนี้"
@@ -1273,6 +1279,49 @@ def delete_trending_song(trend_song_id: int):
     conn.close()
 
     return {"status": "success"}
+
+
+# ---------- บันทึกประวัติการฟังเพลง ตาราง history ----------
+# เก็บทุกครั้งที่กดฟัง (ฟังซ้ำก็เพิ่มแถวใหม่) และคัดลอกชื่อเพลง/ศิลปิน/ลิงก์/รูปจาก Song มาเก็บไว้ด้วยตามสเปก
+@app.post("/history")
+def add_history(data: HistoryData):
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        'INSERT INTO "history" (user_id, song_id, song_name, "Artist", youtube_link, "Image_Link") '
+        'SELECT %s, song_id, song_name, "Artist", youtube_link, "Image_Link" FROM "Song" WHERE song_id = %s '
+        'RETURNING history_id',
+        (str(data.user_id), data.song_id),
+    )
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return {"status": "error", "error": f"ไม่พบเพลง song_id={data.song_id} ในตาราง Song"}
+    conn.commit()
+    conn.close()
+
+    return {"status": "success", "history_id": row["history_id"]}
+
+
+# ---------- หน้า History.js: ประวัติการฟังของผู้ใช้ 1 คน ----------
+# ในตารางมีหลายแถวต่อเพลงถ้าฟังซ้ำ แต่หน้า History โชว์เพลงละ 1 รายการ เรียงตามครั้งล่าสุดที่ฟัง:
+# DISTINCT ON (song_id) + ORDER BY song_id, listened_at DESC เก็บไว้แค่แถวล่าสุดของแต่ละเพลง
+# แล้ว query ชั้นนอกค่อยเรียงใหม่ตามเวลา (ฟังล่าสุดขึ้นก่อน)
+@app.get("/history")
+def read_history(user_id: uuid.UUID):
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        'SELECT * FROM ('
+        '  SELECT DISTINCT ON (song_id) history_id, song_id, song_name, "Artist", youtube_link, "Image_Link", listened_at'
+        '  FROM "history" WHERE user_id = %s ORDER BY song_id, listened_at DESC'
+        ') latest ORDER BY listened_at DESC',
+        (str(user_id),),
+    )
+    history = cursor.fetchall()
+    conn.close()
+
+    return {"status": "success", "data": history}
 
 
 # ---------- ลบข้อมูลทั้งหมด ตาราง User ----------

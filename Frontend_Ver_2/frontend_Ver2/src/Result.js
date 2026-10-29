@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
+import { recordHistory } from '../lib/history';
 
 const TRENDING_INCREMENT_URL = 'https://lyriseek-api-database.onrender.com/trending_song/increment'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
 
@@ -29,14 +30,13 @@ const Result = ({ navigation, route }) => {
             return;
         }
 
-        // item.id มีค่าก็ต่อเมื่อรู้ song_id จริงจาก database เท่านั้น (ดู Homeuser.js) ถ้าไม่รู้ก็ข้ามนับ
+        // item.id มีค่าก็ต่อเมื่อรู้ song_id จริงจาก database เท่านั้น (ดู Homeuser.js) ถ้าไม่รู้ก็ข้ามทั้ง
+        // การนับ trending และการบันทึก history (ตาราง history ต้องมี song_id จริง)
         if (item.id) {
-            try {
-                await fetch(`${TRENDING_INCREMENT_URL}?song_id=${item.id}`, { method: 'POST' });
-            } catch (err) {
-                console.log('นับเพลงเข้า trending ไม่สำเร็จ:', err);
-                // นับไม่สำเร็จก็ยังเปิด YouTube ต่อได้ตามปกติ ไม่ให้ปัญหาการนับมาบล็อกการฟังเพลง
-            }
+            const countTrending = fetch(`${TRENDING_INCREMENT_URL}?song_id=${item.id}`, { method: 'POST' })
+                .catch((err) => console.log('นับเพลงเข้า trending ไม่สำเร็จ:', err));
+            // ยิงพร้อมกันแล้วรอให้เสร็จทั้งคู่ก่อนเปิดลิงก์ ไม่สำเร็จก็ยังเปิด YouTube ต่อได้ตามปกติ
+            await Promise.all([countTrending, recordHistory(item.id)]);
         }
 
         Linking.openURL(item.youtube_link).catch((err) =>

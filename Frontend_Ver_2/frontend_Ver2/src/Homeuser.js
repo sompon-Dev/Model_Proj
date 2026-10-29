@@ -24,6 +24,7 @@ import {
     AudioQuality,
 } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
+import { recordHistory } from '../lib/history';
 
 // ตั้งค่าการอัดเสียงให้รองรับ Google Speech-to-Text (คัดลอกมาจากฟีเจอร์ไมค์ของเพื่อน)
 const RECORDING_OPTIONS =
@@ -98,11 +99,9 @@ const Homeuser = ({ navigation }) => {
             Alert.alert('ไม่มีลิงก์เพลงนี้', 'เพลงนี้ยังไม่มีลิงก์ YouTube ในระบบ');
             return;
         }
-        try {
-            await fetch(`${TRENDING_INCREMENT_URL}?song_id=${song.song_id}`, { method: 'POST' });
-        } catch (err) {
-            console.log('นับเพลงเข้า trending ไม่สำเร็จ:', err);
-        }
+        const countTrending = fetch(`${TRENDING_INCREMENT_URL}?song_id=${song.song_id}`, { method: 'POST' })
+            .catch((err) => console.log('นับเพลงเข้า trending ไม่สำเร็จ:', err));
+        await Promise.all([countTrending, recordHistory(song.song_id)]);
         Linking.openURL(song.youtube_link).catch((err) =>
             console.log('เปิดลิงก์ YouTube ไม่สำเร็จ:', err)
         );
