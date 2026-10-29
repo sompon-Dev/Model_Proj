@@ -110,16 +110,16 @@ def get_thumbnail_link(youtube_link):
     return f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
 
 
-def add_to_song_table(cursor, song_name, youtube_link, spotify_link):
+def add_to_song_table(cursor, song_name, artist, youtube_link, spotify_link):
     """เพิ่มเพลงลงตาราง Song คืน (song_id, image_link) — song_id ฐานข้อมูล generate ให้ (SERIAL)
     spotify_link เป็น NOT NULL ในตารางจริง ถ้า admin ไม่กรอกจะได้ค่า "" มาจากฟอร์ม ไม่ใช่ NULL อยู่แล้ว
     image_link ดึงจาก youtube_link อัตโนมัติ (ตัด video id มาประกอบ URL รูป) ถ้าหาไม่เจอจะได้ "" กลับมา
     (เช่น youtube_link เป็นลิงก์เพลย์ลิสต์ ไม่ใช่ลิงก์เพลงเดี่ยว) ให้ Add_song() เป็นคนแจ้งเตือนต่อ"""
     image_link = get_thumbnail_link(youtube_link)
     cursor.execute(
-        'INSERT INTO "Song" (song_name, spotify_link, youtube_link, "Image_Link") '
-        'VALUES (%s, %s, %s, %s) RETURNING song_id',
-        (song_name, spotify_link, youtube_link, image_link),
+        'INSERT INTO "Song" (song_name, "Artist", spotify_link, youtube_link, "Image_Link") '
+        'VALUES (%s, %s, %s, %s, %s) RETURNING song_id',
+        (song_name, artist, spotify_link, youtube_link, image_link),
     )
     song_id = cursor.fetchone()["song_id"]
     print(f"  [ตาราง Song] เพิ่ม '{song_name}' -> song_id={song_id} "
@@ -146,7 +146,7 @@ def Add_song(song_name, artist, song_genre, youtube_link, spotify_link, song_moo
     # แทนที่จะเป็น tuple ธรรมดา (row[0]) อ่านแล้วรู้เลยว่าคอลัมน์ไหนคือค่าไหน ไม่ต้องจำลำดับ
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
-        song_id, image_link = add_to_song_table(cursor, song_name, youtube_link, spotify_link)
+        song_id, image_link = add_to_song_table(cursor, song_name, artist, youtube_link, spotify_link)
 
         # list comprehension พร้อมเงื่อนไข if ท้าย: แยก genre ด้วย comma, .strip() ตัดช่องว่างหัว-ท้ายทิ้ง,
         # กรองด้วย "if g.strip()" ทิ้งช่องว่างล้วนๆไม่ให้เป็น genre เปล่า — ส่วน "if song_genre else []"

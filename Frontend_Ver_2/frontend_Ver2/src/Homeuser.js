@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
     Alert,
     Platform,
+    Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -63,6 +64,7 @@ const SONG_BY_GENRE_URL = 'https://lyriseek-api-database.onrender.com/Song/by_ge
 const SEARCH_URL = 'https://sompon-dev--lyriseek-search-web.us-east.modal.run/search'; // Ver.5/API.py deploy อยู่บน Modal (ดู Ver.5/modal_app.py)
 const SONG_BY_NAMES_URL = 'https://lyriseek-api-database.onrender.com/Song/by_names'; // ⚠️ IP เดียวกับ GENRE_URL
 const RECOMMENDED_URL = 'https://lyriseek-api-database.onrender.com/trending_song/recommended'; // ⚠️ IP เดียวกับ GENRE_URL (เพลงที่แอดมินกด Add ไว้ใน MostSearch.js)
+const TRENDING_INCREMENT_URL = 'https://lyriseek-api-database.onrender.com/trending_song/increment'; // ⚠️ IP เดียวกับ GENRE_URL
 
 const Homeuser = ({ navigation }) => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -88,6 +90,23 @@ const Homeuser = ({ navigation }) => {
             .then((json) => setForYouList(json.data || []))
             .catch((err) => console.log('โหลดเพลงแนะนำไม่สำเร็จ:', err));
     }, []);
+
+    // กดการ์ดเพลงใน For You: นับเข้า trending ก่อนแล้วค่อยเปิด YouTube Music (เหมือน openYoutube ใน Result.js)
+    // ต้องรอให้นับเสร็จก่อนเปิดลิงก์ เพราะพอ Linking.openURL พาออกจากแอปแล้ว request ที่ค้างอยู่อาจถูกตัดกลางคัน
+    const openRecommendedSong = async (song) => {
+        if (!song.youtube_link) {
+            Alert.alert('ไม่มีลิงก์เพลงนี้', 'เพลงนี้ยังไม่มีลิงก์ YouTube ในระบบ');
+            return;
+        }
+        try {
+            await fetch(`${TRENDING_INCREMENT_URL}?song_id=${song.song_id}`, { method: 'POST' });
+        } catch (err) {
+            console.log('นับเพลงเข้า trending ไม่สำเร็จ:', err);
+        }
+        Linking.openURL(song.youtube_link).catch((err) =>
+            console.log('เปิดลิงก์ YouTube ไม่สำเร็จ:', err)
+        );
+    };
 
     // เริ่มอัดเสียง (กดไมค์ครั้งแรก) — ของเพื่อน คัดลอกมาทั้งหมด
     const startRecording = async () => {
@@ -379,7 +398,7 @@ const Homeuser = ({ navigation }) => {
                                     key={song.trend_song_id}
                                     style={styles.songItem}
                                     activeOpacity={0.8}
-                                    onPress={() => navigation?.navigate('Result')}
+                                    onPress={() => openRecommendedSong(song)}
                                 >
                                     {song.Image_Link ? (
                                         <Image source={{ uri: song.Image_Link }} style={styles.cardPlaceholder} />

@@ -1220,7 +1220,7 @@ def read_recommended_trending_songs():
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cursor.execute(
-        'SELECT t.trend_song_id, t.song_id, s.song_name, s."Artist", s."Image_Link" '
+        'SELECT t.trend_song_id, t.song_id, s.song_name, s."Artist", s."Image_Link", s.youtube_link '
         'FROM "trending_song" t JOIN "Song" s ON s.song_id = t.song_id '
         'WHERE t.trend_add = TRUE ORDER BY t.trend_song_id'
     )
