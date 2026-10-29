@@ -5,7 +5,6 @@ import {
     TextInput,
     TouchableOpacity,
     StyleSheet,
-    Image,
     KeyboardAvoidingView,
     Platform,
     TouchableWithoutFeedback,
@@ -17,9 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
-
-const GOOGLE_LOGO_URI =
-    'https://media.wired.com/photos/5926ffe47034dc5f91bed4e8/3:2/w_1920,c_limit/google-logo.jpg';
 
 const Register = ({ navigation }) => {
     const [username, setUsername] = useState('');
@@ -236,25 +232,6 @@ const Register = ({ navigation }) => {
                                 </Text>
                             </TouchableOpacity>
 
-                            <Text style={styles.orText}>Or</Text>
-
-                            {/* Google button - UI only */}
-                            <TouchableOpacity
-                                style={styles.googleButton}
-                                activeOpacity={0.85}
-                                disabled={loading}
-                            >
-                                <Image
-                                    source={{ uri: GOOGLE_LOGO_URI }}
-                                    style={styles.googleIcon}
-                                    resizeMode="contain"
-                                />
-
-                                <Text style={styles.googleButtonText}>
-                                    Continue with Google
-                                </Text>
-                            </TouchableOpacity>
-
                             <TouchableOpacity
                                 style={styles.loginLinkContainer}
                                 onPress={() => navigation.navigate('Login')}
@@ -343,35 +320,6 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '600',
         color: '#4F66A8',
-    },
-
-    orText: {
-        fontSize: 22,
-        color: '#1A1A1A',
-        textAlign: 'center',
-        marginVertical: 20,
-    },
-
-    googleButton: {
-        backgroundColor: '#F4F5F7',
-        borderRadius: 12,
-        paddingHorizontal: 18,
-        height: 44,
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'center',
-    },
-
-    googleIcon: {
-        width: 28,
-        height: 28,
-        marginRight: 8,
-    },
-
-    googleButtonText: {
-        fontSize: 13,
-        color: '#3C4043',
-        fontWeight: '500',
     },
 
     loginLinkContainer: {

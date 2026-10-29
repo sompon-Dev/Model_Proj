@@ -24,6 +24,9 @@ WebBrowser.maybeCompleteAuthSession();
 const GOOGLE_LOGO_URI =
     'https://media.wired.com/photos/5926ffe47034dc5f91bed4e8/3:2/w_1920,c_limit/google-logo.jpg';
 
+const FACEBOOK_LOGO_URI =
+    'https://1000logos.net/wp-content/uploads/2017/02/Facebook-Logosu.png';
+
 const Login = ({ navigation }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -34,14 +37,20 @@ const Login = ({ navigation }) => {
         try {
             const { data: userData, error } = await supabase
                 .from('users')
-                .select('role')
+                .select('role, username')
                 .eq('users_id', userId)
                 .single();
 
             if (!error && userData?.role === 'admin') {
-                navigation?.navigate('Homeadmin');
+                navigation?.navigate('Homeadmin', {
+                    userId: userId,
+                    username: userData?.username,
+                });
             } else {
-                navigation?.navigate('Homeuser');
+                navigation?.navigate('Homeuser', {
+                    userId: userId,
+                    username: userData?.username,
+                });
             }
         } catch (err) {
             console.log('Error checking role:', err);
@@ -179,6 +188,69 @@ const Login = ({ navigation }) => {
         }
     };
 
+    const handleFacebookLogin = async () => {
+        setLoading(true);
+        try {
+            const redirectTo = AuthSession.makeRedirectUri({
+                scheme: 'lyriseek',
+                path: 'auth/callback',
+            });
+
+            console.log('Redirect URI used:', redirectTo);
+
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'facebook',
+                options: {
+                    redirectTo,
+                    skipBrowserRedirect: true,
+                },
+            });
+
+            if (error) throw error;
+
+            if (data?.url) {
+                const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+                if (result.type === 'success') {
+                    const { url } = result;
+                    let queryString = '';
+
+                    if (url.includes('#')) {
+                        queryString = url.split('#')[1];
+                    } else if (url.includes('?')) {
+                        queryString = url.split('?')[1];
+                    }
+
+                    const params = AuthSession.parseQueryString(queryString);
+
+                    if (params.code) {
+                        const { error: exchangeError } =
+                            await supabase.auth.exchangeCodeForSession(params.code);
+                        if (exchangeError) throw exchangeError;
+                    } else if (params.access_token && params.refresh_token) {
+                        const { error: sessionError } = await supabase.auth.setSession({
+                            access_token: params.access_token,
+                            refresh_token: params.refresh_token,
+                        });
+
+                        if (sessionError) throw sessionError;
+                    }
+
+                    // ดึงข้อมูล User ล่าสุดแล้วส่งไปเช็ก role
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                        await navigateByUserRole(user.id);
+                    }
+                }
+            }
+        } catch (err) {
+            console.log('Facebook Login Error:', err);
+            Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเข้าสู่ระบบด้วย Facebook ได้');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar style="light" />
@@ -271,19 +343,41 @@ const Login = ({ navigation }) => {
 
                         {/* Google button */}
                         <TouchableOpacity
-                            style={[styles.googleButton, loading && styles.disabledButton]}
+                            style={[styles.socialButton, loading && styles.disabledButton]}
                             activeOpacity={0.85}
                             onPress={handleGoogleLogin}
                             disabled={loading}
                         >
                             <Image
                                 source={{ uri: GOOGLE_LOGO_URI }}
-                                style={styles.googleIcon}
+                                style={styles.socialIcon}
                                 resizeMode="contain"
                             />
 
-                            <Text style={styles.googleButtonText}>
+                            <Text style={styles.socialButtonText}>
                                 Continue with Google
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* Facebook button */}
+                        <TouchableOpacity
+                            style={[
+                                styles.socialButton,
+                                styles.facebookButton,
+                                loading && styles.disabledButton,
+                            ]}
+                            activeOpacity={0.85}
+                            onPress={handleFacebookLogin}
+                            disabled={loading}
+                        >
+                            <Image
+                                source={{ uri: FACEBOOK_LOGO_URI }}
+                                style={styles.socialIcon}
+                                resizeMode="contain"
+                            />
+
+                            <Text style={styles.socialButtonText}>
+                                Continue with Facebook
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -377,26 +471,31 @@ const styles = StyleSheet.create({
         fontSize: 22,
         color: '#1A1A1A',
         textAlign: 'center',
-        marginVertical: 22,
+        marginVertical: 18,
     },
 
-    googleButton: {
+    socialButton: {
         backgroundColor: '#F4F5F7',
         borderRadius: 12,
-        paddingHorizontal: 18,
+        paddingHorizontal: 16,
         height: 44,
         flexDirection: 'row',
         alignItems: 'center',
         alignSelf: 'center',
+        width: 220,
     },
 
-    googleIcon: {
+    facebookButton: {
+        marginTop: 10,
+    },
+
+    socialIcon: {
         width: 28,
         height: 28,
         marginRight: 8,
     },
 
-    googleButtonText: {
+    socialButtonText: {
         fontSize: 13,
         color: '#3C4043',
         fontWeight: '500',

@@ -232,10 +232,13 @@ const Homeuser = ({ navigation }) => {
     const handleApplyPress = async () => {
         setLoadingSongs(true);
 
-        // ตั้งเวลารอ server สูงสุด 10 วินาที ถ้า server ไม่ตอบเลยก็ยกเลิก request ทิ้ง
+        // ตั้งเวลารอ server สูงสุด 30 วินาที ถ้า server ไม่ตอบเลยก็ยกเลิก request ทิ้ง
         // (ไม่งั้นถ้า server เงียบไปเฉยๆ เช่น IP ผิด/server ไม่ได้รัน หน้า loading จะค้างตลอดไป)
+        // เดิมตั้งไว้ 10 วิ แต่ backend อยู่บน Render free tier ซึ่ง "หลับ" หลังไม่มีคนเรียก 15 นาที
+        // แล้วตื่นช้า (วัดจริงได้สูงสุด ~86 วิ) ทำให้ request แรกหลัง idle โดน abort ทั้งที่ server
+        // กำลังตอบอยู่ — ขยายเป็น 30 วิ (คู่กับ keep-alive ping ที่กันไม่ให้หลับบ่อย ดู Test/)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         try {
             const genreIdsParam = selectedGenres.join(',');
@@ -254,7 +257,7 @@ const Homeuser = ({ navigation }) => {
 
             navigation?.navigate('Result', { results });
         } catch (err) {
-            console.log('ดึงเพลงตาม genre ไม่สำเร็จ (หรือรอ server นานเกิน 10 วิ):', err);
+            console.log('ดึงเพลงตาม genre ไม่สำเร็จ (หรือรอ server นานเกิน 30 วิ):', err);
             navigation?.navigate('Result', { results: [] });
         } finally {
             clearTimeout(timeoutId);
@@ -270,8 +273,10 @@ const Homeuser = ({ navigation }) => {
 
         setLoadingSongs(true);
 
+        // ขยายจาก 10 วิ เป็น 30 วิ ด้วยเหตุผลเดียวกับ handleApplyPress ด้านบน — โมเดลค้นหา (Ver.5)
+        // อยู่บน Modal ซึ่ง scale-to-zero เหมือนกัน วัดจริง cold start ได้ถึง ~21 วิ (ดู Test/)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         try {
             const res = await fetch(SEARCH_URL, {
@@ -352,7 +357,7 @@ const Homeuser = ({ navigation }) => {
                     <TouchableOpacity
                         style={styles.avatarButton}
                         activeOpacity={0.7}
-                        onPress={() => navigation?.navigate('Login')}
+                        onPress={() => navigation?.navigate('Profile')}
                     >
                         <Feather name="user" size={24} color="#111111" />
                     </TouchableOpacity>

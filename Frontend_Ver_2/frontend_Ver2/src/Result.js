@@ -87,7 +87,7 @@ const Result = ({ navigation, route }) => {
                 <TouchableOpacity
                     style={styles.avatarButton}
                     activeOpacity={0.7}
-                    onPress={() => navigation?.navigate('Login')}
+                    onPress={() => navigation?.navigate('Profile')}
                 >
                     <Feather name="user" size={24} color="#111111" />
                 </TouchableOpacity>

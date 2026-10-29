@@ -24,7 +24,7 @@ const Homeadmin = ({ navigation }) => {
                     <TouchableOpacity
                         style={styles.profileButton}
                         activeOpacity={0.7}
-                        onPress={() => navigation?.navigate('Login')}
+                        onPress={() => navigation?.navigate('AdminProfile')}
                     >
                         <Feather name="user" size={24} color="#1E1E1E" />
                     </TouchableOpacity>
