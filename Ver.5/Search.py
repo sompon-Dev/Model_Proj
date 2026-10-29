@@ -29,6 +29,20 @@ tfidf = TfidfVectorizer(token_pattern=r"\S+", ngram_range=(1, 2), sublinear_tf=T
 chunk_tfidf = tfidf.fit_transform(c["text"] for c in chunks)  # fit_transform รับ generator ได้ตรงๆ ไม่ต้องสร้าง list ก่อน; ผลลัพธ์เป็น sparse matrix (เก็บแต่ช่องที่ไม่ใช่ 0 ประหยัดหน่วยความจำ)
 
 
+def reload_index():
+    """โหลด chunks_embeddings.pt / chunks_metadata.pkl ใหม่จากดิสก์ แล้วแก้ตัวแปร module-level
+    (embeddings, songs, chunks, tfidf, chunk_tfidf) ตรงๆ — เรียกหลังจาก BuildindexUpdate.update_index()
+    เขียนทับไฟล์ไปแล้ว เพื่อให้ search() ที่รันอยู่ในโปรเซสเดียวกัน (container เดิมที่ยังไม่ cold start
+    ใหม่) เห็นเพลงที่เพิ่งเทรนเพิ่มทันที ไม่ต้องรอ container รีสตาร์ท"""
+    global embeddings, songs, chunks, tfidf, chunk_tfidf
+    embeddings = torch.load(BASE_PATH / "chunks_embeddings.pt", weights_only=True)
+    with open(BASE_PATH / "chunks_metadata.pkl", "rb") as f:
+        meta = pickle.load(f)
+    songs, chunks = meta["songs"], meta["chunks"]
+    tfidf = TfidfVectorizer(token_pattern=r"\S+", ngram_range=(1, 2), sublinear_tf=True)
+    chunk_tfidf = tfidf.fit_transform(c["text"] for c in chunks)
+
+
 def search(query_text, top_k=11, w_dense=W_DENSE):
     # 3. query ต้องผ่านการ clean + ตัดคำแบบเดียวกับตอนสร้าง index
     query = preprocess(query_text)

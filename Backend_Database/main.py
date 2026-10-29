@@ -329,23 +329,22 @@ def read_Train_Song():
 # ---------- หน้า UpdateModel.js ของแอดมินเรียก endpoint นี้: เอาเพลงที่ติ๊กไว้ไปเทรนเข้าโมเดล Ver.5 ----------
 # ต้องประกาศ route คงที่นี้ไว้ "ก่อน" /Train_Song/{newsong_id} ด้านล่าง ไม่งั้น FastAPI จะจับคู่คำว่า
 # "update_model" เข้ากับ newsong_id (ซึ่งเป็น int) แล้ว error ไปก่อนถึง route นี้ (เหมือน /Genre/unique)
+# โมเดลจริง (torch/sentence-transformers + ไฟล์ index) อยู่บน Modal ไม่ใช่เครื่องนี้ (ดู Ver.5/modal_app.py)
+# Render (เครื่องที่รัน main.py นี้) ไม่ได้ลง library พวกนั้นไว้เลย เรียก BuildindexUpdate ตรงๆ ในเครื่อง
+# นี้จึงพังทุกครั้ง (ModuleNotFoundError) — endpoint นี้แค่ยิง HTTP ไปให้ Modal เทรนแทน
+MODAL_UPDATE_MODEL_URL = "https://sompon-dev--lyriseek-search-web.us-east.modal.run/update_model"
+
+
 @app.post("/Train_Song/update_model")
 def update_model_with_selected_songs(data: UpdateModelData):
-    """ขั้นตอน: (1) ดึงเพลงที่ admin ติ๊กไว้จากตาราง Train_Song (2) เขียนเป็น update_dataset.csv
-    ชั่วคราวใน Ver.5/ (3) เรียก BuildindexUpdate.update_index() ให้โมเดลรู้จักเพลงใหม่พวกนี้ (เพิ่ม
-    chunk/embedding เข้า index เดิม ไม่ต้องเทรนใหม่ทั้งหมด) (4) ลบเฉพาะเพลงที่เพิ่งเทรนไปออกจาก
-    Train_Song และลบไฟล์ csv ทิ้ง — เพลงที่ admin ไม่ได้ติ๊กยังอยู่ใน Train_Song เหมือนเดิม
-    หมายเหตุ: ขั้นตอนนี้ช้า (โหลดโมเดล E5 + encode) request จะค้างรอจนกว่าจะเสร็จ"""
+    """ขั้นตอน: (1) ดึงเพลงที่ admin ติ๊กไว้จากตาราง Train_Song (2) ส่งเพลงพวกนี้ไปให้ Ver.5/API.py
+    (รันอยู่บน Modal) เทรนเข้า index จริง ผ่าน HTTP POST (3) ลบเฉพาะเพลงที่เพิ่งเทรนไปออกจาก
+    Train_Song — เพลงที่ admin ไม่ได้ติ๊กยังอยู่ใน Train_Song เหมือนเดิม
+    หมายเหตุ: ขั้นตอนนี้ช้า (ฝั่ง Modal ต้อง encode เพลงใหม่) request จะค้างรอจนกว่าจะเสร็จ"""
     if not data.newsong_ids:
         return {"status": "error", "error": "ไม่ได้เลือกเพลงเลย"}
 
-    import sys
-    from pathlib import Path
-    import pandas as pd
-
-    ver5_path = Path(__file__).parent.parent / "Ver.5"
-    sys.path.insert(0, str(ver5_path))
-    from BuildindexUpdate import update_index  # noqa: E402  (deferred import กัน circular/ไม่จำเป็นต้องใช้ตอน server เริ่มทำงาน)
+    import requests
 
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -359,31 +358,41 @@ def update_model_with_selected_songs(data: UpdateModelData):
         conn.close()
         return {"status": "error", "error": "ไม่พบเพลงที่เลือกในตาราง Train_Song"}
 
-    csv_path = ver5_path / "update_dataset.csv"
-    df = pd.DataFrame(rows)[["newsong_name", "newsong_artist", "newsong_lyrics"]]
-    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-    print(f"[UpdateModel] เขียน {len(df)} เพลงลง {csv_path} แล้ว กำลังอัปเดตโมเดล...")
+    songs_payload = [
+        {
+            "newsong_name": row["newsong_name"],
+            "newsong_artist": row["newsong_artist"],
+            "newsong_lyrics": row["newsong_lyrics"],
+        }
+        for row in rows
+    ]
+    print(f"[UpdateModel] ส่ง {len(songs_payload)} เพลงไปเทรนที่ Modal...")
 
     try:
-        result = update_index(
-            csv_path,
-            ver5_path / "chunks_embeddings.pt",
-            ver5_path / "chunks_metadata.pkl",
+        res = requests.post(
+            MODAL_UPDATE_MODEL_URL,
+            json={"songs": songs_payload},
+            timeout=280,  # น้อยกว่า 300 วิที่ Modal ตั้งไว้นิดหน่อย กันเคส Modal กำลังจะ timeout พอดีแต่เรายังรอไม่ทัน
         )
+        result = res.json()
     except Exception as e:
         conn.close()
-        print(f"[UpdateModel] อัปเดตโมเดลไม่สำเร็จ: {e} (ไม่ลบอะไรออกจาก Train_Song ไว้ลองใหม่ได้)")
-        return {"status": "error", "error": f"อัปเดตโมเดลไม่สำเร็จ: {e}"}
+        print(f"[UpdateModel] เรียก Modal ไม่สำเร็จ: {e} (ไม่ลบอะไรออกจาก Train_Song ไว้ลองใหม่ได้)")
+        return {"status": "error", "error": f"เชื่อมต่อโมเดลไม่สำเร็จ: {e}"}
+
+    if result.get("status") != "success":
+        conn.close()
+        print(f"[UpdateModel] Modal อัปเดตโมเดลไม่สำเร็จ: {result.get('error')} (ไม่ลบอะไรออกจาก Train_Song ไว้ลองใหม่ได้)")
+        return {"status": "error", "error": result.get("error", "อัปเดตโมเดลไม่สำเร็จ")}
 
     trained_ids = [row["newsong_id"] for row in rows]
     cursor.execute('DELETE FROM "Train_Song" WHERE newsong_id = ANY(%s)', (trained_ids,))
     conn.commit()
     conn.close()
 
-    csv_path.unlink(missing_ok=True)
-    print(f"[UpdateModel] ลบ {len(trained_ids)} เพลงออกจาก Train_Song และลบไฟล์ {csv_path.name} แล้ว")
+    print(f"[UpdateModel] ลบ {len(trained_ids)} เพลงออกจาก Train_Song แล้ว (เทรนเข้าโมเดลสำเร็จ)")
 
-    return {"status": "success", "trained_song_ids": trained_ids, **result}
+    return {"status": "success", "trained_song_ids": trained_ids, **{k: v for k, v in result.items() if k != "status"}}
 
 
 # ---------- อ่านข้อมูลคนเดียว ตาราง users ----------
