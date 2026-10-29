@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "9ba7526b-a5b7-40ab-8013-e7d5f82d4521",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+  "output": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+  "specification": {
+    "sha256": "dfdcf67837088dd62af7408b273ebc0330a1963af77715589e338e26857efd22",
+    "bytes": 17351
+  },
+  "artifact": {
+    "sha256": "0a5f200be1619f102c81d9062cf42448a1c43339fe502b723467d5d9b6b6c358",
+    "bytes": 850629
+  }
+}

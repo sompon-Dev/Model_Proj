@@ -1,0 +1,221 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Buildindex.py: สร้าง Vector Index ของ LyriSeek",
+    "quality_profile": "showcase",
+    "output": ".archify/workflow-buildindex-20261024-205007/buildindex-workflow.html",
+    "repository": {
+      "url": "https://github.com/sompon-Dev/Model_Proj.git",
+      "revision": "02916b591aea761b07baeffad9e5b5459a7b094f",
+      "provider": "github",
+      "link_mode": "web"
+    },
+    "legend": { "mode": "auto" }
+  },
+  "lanes": [
+    { "id": "run", "label": "ขั้นตอนหลัก" },
+    { "id": "old_song", "label": "เพลงเดิม (CleanedData)" },
+    { "id": "new_song", "label": "เพลงใหม่ (DatasetInput)" },
+    { "id": "out_tensor", "label": "ผลลัพธ์: Tensor" },
+    { "id": "out_meta", "label": "ผลลัพธ์: Metadata" },
+    { "id": "example", "label": "ตัวอย่างจริง: 1 เพลง" }
+  ],
+  "phases": [
+    { "id": "read", "label": "อ่าน + เตรียมข้อความ", "fromCol": 1, "toCol": 2, "variant": "default" },
+    { "id": "embed", "label": "รวม + แปลงเป็น Vector", "fromCol": 3, "toCol": 4, "variant": "emphasis" },
+    { "id": "save", "label": "บันทึกไฟล์", "fromCol": 5, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["start", "read_new", "dedup_prep", "merge", "embed_normalize", "save_tensor"],
+  "nodes": [
+    {
+      "id": "start", "lane": "run", "col": 0, "type": "backend",
+      "label": "รัน Buildindex.py", "sublabel": "python Buildindex.py",
+      "icon": "start",
+      "sources": [{ "path": "Ver.5/Buildindex.py", "line": 37, "end_line": 41 }]
+    },
+    {
+      "id": "read_old", "lane": "old_song", "col": 1, "type": "database",
+      "label": "อ่านเพลงเดิม", "sublabel": "CleanedData: 17 ศิลปิน, 80 ไฟล์",
+      "sources": [{ "path": "Ver.5/Buildindex.py", "line": 41, "end_line": 50 }]
+    },
+    {
+      "id": "read_new", "lane": "new_song", "col": 1, "type": "database",
+      "label": "อ่านเพลงใหม่", "sublabel": "2 ไฟล์ CSV รวม 7,830 แถว",
+      "sources": [{ "path": "Ver.5/Buildindex.py", "line": 57, "end_line": 63 }]
+    },
+    {
+      "id": "chunk_old", "lane": "old_song", "col": 2, "type": "backend",
+      "label": "make_line_chunks()", "sublabel": "รวมทีละ 2 บรรทัด เลื่อนทีละ 1",
+      "tag": "WINDOW_LINE=2, STRIDE_LINE=1",
+      "sources": [
+        { "path": "Ver.5/Buildindex.py", "line": 25, "end_line": 28 },
+        { "path": "Ver.5/Buildindex.py", "line": 51, "end_line": 54 }
+      ]
+    },
+    {
+      "id": "dedup_prep", "lane": "new_song", "col": 2, "type": "backend",
+      "label": "กันซ้ำ + ตัดคำ + แบ่ง chunk", "sublabel": "กันซ้ำ → ตัดคำไทย (pythainlp) → แบ่ง chunk",
+      "tag": "WINDOW_TOK=32, STRIDE_TOK=16",
+      "sources": [
+        { "path": "Ver.5/Buildindex.py", "line": 65, "end_line": 82 },
+        { "path": "Ver.5/textproc.py", "line": 28, "end_line": 30 },
+        { "path": "Ver.5/Buildindex.py", "line": 31, "end_line": 34 }
+      ]
+    },
+    {
+      "id": "merge", "lane": "run", "col": 3, "type": "backend",
+      "label": "รวมผลลัพธ์", "sublabel": "รวมเป็น 7,909 เพลง / 98,104 chunks",
+      "sources": [{ "path": "Ver.5/Buildindex.py", "line": 87, "end_line": 89 }]
+    },
+    {
+      "id": "embed_normalize", "lane": "run", "col": 4, "type": "backend",
+      "label": "Encode + Normalize", "sublabel": "โหลดโมเดล E5 → encode → normalize (L2)",
+      "tag": "98,104 chunks → vectors",
+      "sources": [
+        { "path": "Ver.5/Buildindex.py", "line": 92, "end_line": 94 },
+        { "path": "Ver.5/Buildindex.py", "line": 96, "end_line": 102 },
+        { "path": "Ver.5/Buildindex.py", "line": 105, "end_line": 107 }
+      ]
+    },
+    {
+      "id": "save_tensor", "lane": "out_tensor", "col": 5, "type": "database",
+      "label": "บันทึก Tensor", "sublabel": "torch.save() → chunks_embeddings.pt",
+      "icon": "success",
+      "sources": [{ "path": "Ver.5/Buildindex.py", "line": 109, "end_line": 109 }]
+    },
+    {
+      "id": "save_meta", "lane": "out_meta", "col": 5, "type": "database",
+      "label": "บันทึก Metadata", "sublabel": "pickle.dump() → chunks_metadata.pkl",
+      "icon": "success",
+      "sources": [{ "path": "Ver.5/Buildindex.py", "line": 110, "end_line": 114 }]
+    },
+    {
+      "id": "ex_raw", "lane": "example", "col": 0, "type": "external",
+      "label": "เนื้อเพลงดิบ", "sublabel": "1 แถวใน songs_enriched.csv",
+      "icon": "person"
+    },
+    {
+      "id": "ex_clean", "lane": "example", "col": 1, "type": "external",
+      "label": "clean_text()", "sublabel": "ตัด \"++\" และอักขระแปลก"
+    },
+    {
+      "id": "ex_tokens", "lane": "example", "col": 2, "type": "external",
+      "label": "tokenize_text()", "sublabel": "ตัดคำได้ 54 คำ"
+    },
+    {
+      "id": "ex_chunks", "lane": "example", "col": 3, "type": "external",
+      "label": "make_token_chunks()", "sublabel": "54 คำ → 2 chunks ซ้อน 16 คำ"
+    },
+    {
+      "id": "ex_vector", "lane": "example", "col": 4, "type": "external",
+      "label": "model.encode()", "sublabel": "2 vector จริง 768 มิติ"
+    },
+    {
+      "id": "ex_stored", "lane": "example", "col": 5, "type": "external",
+      "label": "ใช้ตอนค้นหา", "sublabel": "dot product กับทุก chunk"
+    }
+  ],
+  "edges": [
+    { "id": "e-start-old", "from": "start", "to": "read_old", "variant": "default", "role": "branch" },
+    { "id": "e-start-new", "from": "start", "to": "read_new", "variant": "default" },
+    { "id": "e-old-chunk", "from": "read_old", "to": "chunk_old", "variant": "default" },
+    { "id": "e-new-dedup", "from": "read_new", "to": "dedup_prep", "label": "ต่อไฟล์ละแถว", "variant": "default" },
+    { "id": "e-old-merge", "from": "chunk_old", "to": "merge", "variant": "default", "role": "branch" },
+    { "id": "e-new-merge", "from": "dedup_prep", "to": "merge", "variant": "emphasis" },
+    { "id": "e-merge-embed", "from": "merge", "to": "embed_normalize", "variant": "emphasis" },
+    { "id": "e-embed-tensor", "from": "embed_normalize", "to": "save_tensor", "variant": "emphasis" },
+    { "id": "e-embed-meta", "from": "embed_normalize", "to": "save_meta", "label": "metadata คู่กับ tensor", "variant": "dashed", "role": "branch" },
+    { "id": "e-ex-1", "from": "ex_raw", "to": "ex_clean", "variant": "dashed" },
+    { "id": "e-ex-2", "from": "ex_clean", "to": "ex_tokens", "variant": "dashed" },
+    { "id": "e-ex-3", "from": "ex_tokens", "to": "ex_chunks", "variant": "dashed" },
+    { "id": "e-ex-4", "from": "ex_chunks", "to": "ex_vector", "variant": "dashed" },
+    { "id": "e-ex-5", "from": "ex_vector", "to": "ex_stored", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "ขั้นที่ 1-2: Input ดิบ → clean_text() — เพลง \"กิ่งทองใบหยก\" (ชาย เมืองสิงห์)",
+      "items": [
+        "Input ดิบจาก CSV (คอลัมน์ lyric): \"++สุขจริง นะกิ่งทอง สมแล้วคู่ครองน้องเป็น เศรษฐี พี่ไม่อิจฉาเพราะว่า บุญพี่ไม่มี เทียบน้องคนดี ที่เคยจับจอง กิ่งทองใบน้อย...\"",
+        "clean_text() ใช้ regex [^฀-๿a-zA-Z0-9\\s] ตัดทุกตัวที่ไม่ใช่ไทย/อังกฤษ/ตัวเลข/ช่องว่างทิ้ง (รวม \"++\" ที่ติดมาด้วย) แล้วยุบช่องว่างซ้ำให้เหลือช่องเดียว",
+        "ผลลัพธ์หลัง clean: \"สุขจริง นะกิ่งทอง สมแล้วคู่ครองน้องเป็น เศรษฐี พี่ไม่อิจฉาเพราะว่า บุญพี่ไม่มี เทียบน้องคนดี ที่เคยจับจอง กิ่งทองใบน้อย...\" (ยังเป็นประโยคยาวๆ ไม่มีช่องว่างระหว่างคำไทย)"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "ขั้นที่ 3: tokenize_text() — แตกเป็นคำด้วย pythainlp (newmm)",
+      "items": [
+        "ภาษาไทยไม่มีช่องว่างคั่นคำ ต้องใช้ word_tokenize(engine=\"newmm\") ของ pythainlp เดาจุดตัดคำให้",
+        "ได้ทั้งหมด 54 คำ ตัวอย่าง 15 คำแรก: สุข / จริง / นะ / กิ่ง / ทอง / สม / แล้ว / คู่ครอง / น้อง / เป็น / เศรษฐี / พี่ / ไม่ / อิจฉา / เพราะว่า",
+        "ผลลัพธ์สุดท้ายคือ string เดียวที่เอาคำมาต่อกันด้วยช่องว่าง 1 ช่อง (join(\" \")) — ใช้ค่านี้ทั้งตอนสร้าง index และตอนแปลง query ค้นหา เพื่อให้ตัดคำแบบเดียวกันเป๊ะ"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "ขั้นที่ 4: make_token_chunks() — แบ่งเป็นท่อนละ 32 คำ เลื่อนทีละ 16",
+      "items": [
+        "54 คำ > หน้าต่าง 32 คำ (WINDOW_TOK) จึงแบ่งเป็น 2 chunks แทนที่จะเก็บทั้งเพลงเป็นก้อนเดียว",
+        "chunk แรก (คำที่ 0-31): \"สุข จริง นะ กิ่ง ทอง สม แล้ว คู่ครอง น้อง เป็น เศรษฐี พี่ ไม่ อิจฉา เพราะว่า บุญ พี่ ไม่ มี เทียบ น้อง คนดี ที่ เคย จับจอง กิ่ง ทองใบ น้อย ถึง ลอย ลู่\"",
+        "chunk สอง (คำที่ 16-47): \"พี่ ไม่ มี เทียบ น้อง คนดี ที่ เคย จับจอง กิ่ง ทองใบ น้อย ถึง ลอย ลู่ ลม สุด เหนี่ยว โน้ม เพราะ ลมแรง ผลัก พา ได้ยิน เสียง โห่ ดัง แทบ เป็น บ้าคลั่ง...\"",
+        "สังเกตว่าคำที่ 16-31 ซ้ำอยู่ในทั้ง 2 chunk (STRIDE_TOK=16 < WINDOW_TOK=32) — ป้องกันไม่ให้ใจความขาดตรงรอยต่อระหว่างท่อน",
+        "ทั้ง 2 chunks ถูกเพิ่มเข้า chunks[] พร้อม song_idx=235 ชี้กลับไปที่ songs[235] (song_name=\"กิ่งทองใบหยก\", artist=\"ชาย เมืองสิงห์\")"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "ขั้นที่ 5: model.encode() — vector หน้าตาเป็นยังไงจริงๆ",
+      "items": [
+        "vector ไม่ใช่ตัวเลขที่มีความหมายตรงตัวทีละค่า แต่เป็นพิกัด 768 มิติในปริภูมิที่โมเดล E5 เรียนรู้มา — chunk ที่มีความหมายใกล้กันจะมีพิกัดอยู่ใกล้กันในปริภูมินี้",
+        "chunk แรก (แถวที่ 5249 ใน tensor) ได้ vector 768 ค่า — 10 ค่าแรกของจริง: [0.0393, 0.0468, -0.0190, -0.0013, -0.0208, -0.0786, -0.0210, -0.0254, 0.0169, 0.0202] (อีก 758 ค่าที่เหลือก็เป็นทศนิยมแบบนี้ต่อไป)",
+        "chunk สอง (แถวที่ 5250) ได้ vector อีกชุด — 10 ค่าแรก: [0.0120, 0.0628, -0.0145, -0.0037, -0.0109, -0.0947, -0.0307, -0.0404, 0.0207, 0.0333] — คนละค่ากับ chunk แรกเพราะเนื้อหาต่างกัน แม้มาจากเพลงเดียวกัน",
+        "normalize(p=2, dim=1) ปรับให้ทุก vector ยาว (L2 norm) = 1.000000 พอดี — ตรวจสอบจากไฟล์ chunks_embeddings.pt จริงแล้วทั้ง 2 chunk ได้ norm=1.0 เป๊ะ"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "ขั้นที่ 6: เป็น vector แล้วไปไหนต่อ",
+      "items": [
+        "vector ทั้ง 2 ถูกบันทึกเป็นแถวที่ 5249 และ 5250 ในไฟล์ chunks_embeddings.pt (tensor รวม 98,104 แถว ของทุกเพลงในระบบ)",
+        "ตอนมีคนค้นหาใน Search.py: query ถูกแปลงเป็น vector 768 มิติแบบเดียวกัน แล้วคูณ dot product กับทุกแถวใน tensor ทีเดียว (embeddings @ q_vec) — เพราะ normalize ไว้แล้ว dot product นี้เท่ากับ cosine similarity พอดี",
+        "ถ้า query มีความหมายใกล้เคียงท่อนไหนท่อนหนึ่งของเพลงนี้ (เช่น แถว 5249 หรือ 5250) คะแนนของแถวนั้นจะสูง — แต่ Search.py คืนผลเป็น \"เพลง\" ไม่ใช่ \"chunk\" จึงใช้ set \"seen\" กันไม่ให้เพลงเดียวกันโผล่ซ้ำแม้ชนะทั้ง 2 chunk"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "ตัวเลขจริงของแต่ละขั้นตอน",
+      "items": [
+        "เพลงใหม่อ่านจาก 2 ไฟล์: famous_with_genre.csv (54 แถว) + songs_enriched.csv (7,774 แถว)",
+        "กันเพลงซ้ำด้วยคู่ (ชื่อเพลง, ศิลปิน) ใน seen_keys ก่อนตัดคำ",
+        "ตัดคำไทยด้วย pythainlp เอนจิน newmm แล้วแบ่ง chunk ทีละ 32 token เลื่อนหน้าต่างทีละ 16 token",
+        "โหลดโมเดล intfloat/multilingual-e5-base แล้วเข้ารหัสทุก chunk เป็น vector ด้วย batch_size=64",
+        "normalize แบบ L2 (dim=1) ให้ vector ทุกตัวยาว=1 ก่อน dot product = cosine similarity พอดี"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "สองแหล่งข้อมูล คนละวิธีแบ่ง chunk",
+      "items": [
+        "เพลงเดิม (CleanedData): มีโครงสร้างเป็นบรรทัดอยู่แล้ว แบ่งทีละ 2 บรรทัด (เนื้อเพลงท่อนสั้น)",
+        "เพลงใหม่ (DatasetInput): เป็นก้อนข้อความดิบ ต้องตัดคำไทยก่อนด้วย pythainlp แล้วแบ่งทีละ 32 token"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "ทำไมต้อง normalize ก่อนบันทึก",
+      "items": [
+        "torch.nn.functional.normalize(p=2, dim=1) ปรับทุก vector ให้ยาว = 1",
+        "ทำให้ dot product ระหว่าง vector สองตัวเท่ากับ cosine similarity พอดี ไม่ต้องคำนวณซ้ำตอนค้นหา"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "ผลลัพธ์ที่ได้",
+      "items": [
+        "chunks_embeddings.pt — tensor ของทุก chunk ที่ normalize แล้ว (301MB จริงตอน deploy)",
+        "chunks_metadata.pkl — dict {songs, chunks} ไว้แปลง index ของ vector กลับเป็นชื่อเพลง/เนื้อร้อง",
+        "Search.py โหลด 2 ไฟล์นี้ตรงๆ ตอน import ไม่ต้องรัน Buildindex.py ซ้ำจนกว่าจะมีเพลงใหม่"
+      ]
+    }
+  ]
+}

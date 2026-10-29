@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "workflow",
+  "quality": "showcase",
+  "startedAt": "2026-10-24T17:26:43.001Z",
+  "specification": {
+    "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+    "sha256": "4110266237c3982d66c0b03dee45d5bf0e050cf648a97a8d5516fb0bd7983622",
+    "bytes": 17423
+  },
+  "artifact": {
+    "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+    "sha256": "e83deed69cc2feed1c68ba84a72b165ee25d1d2034deb43c97383433ed51ea83",
+    "bytes": 841432
+  },
+  "stages": {
+    "validate": {
+      "status": "fail",
+      "exitCode": 1,
+      "durationMs": null,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\usEr\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "deliver",
+        "workflow",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "deliver",
+        "receiptId": "e738045e-4f32-4f69-8bee-b3ef584c242a",
+        "stage": "render",
+        "type": "workflow",
+        "input": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+        "output": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "error": "Workflow layout validation failed",
+        "diagnostics": [
+          {
+            "code": "workflow/sublabel-readability",
+            "severity": "error",
+            "message": "Sublabel \"CleanedData: 17 โฟลเดอร์ศิลปิน, 80 ไฟล์ .txt\" needs ~193px at the 7.3px minimum that stays readable on this 1122px canvas, but node \"read_old\" provides 192px — shorten the sublabel while preserving its role or protocol.",
+            "subject": {
+              "diagramType": "workflow",
+              "node": "read_old",
+              "path": "/nodes/1/sublabel"
+            },
+            "evidence": {
+              "requiredFontPx": 7.3,
+              "maximumSlotFontPx": 8,
+              "canvasWidthPx": 1122,
+              "maximumCanvasWidthPx": 1240,
+              "requiredTextWidthPx": 192.72,
+              "availableTextWidthPx": 192
+            },
+            "supportedFixes": [
+              "shorten node \"read_old\" sublabel while preserving its role or protocol; move supplementary facts into a card"
+            ]
+          },
+          {
+            "code": "workflow/sublabel-readability",
+            "severity": "error",
+            "message": "Sublabel \"รวมทีละ 2 บรรทัด เลื่อนหน้าต่างทีละ 1 บรรทัด\" needs ~193px at the 7.3px minimum that stays readable on this 1122px canvas, but node \"chunk_old\" provides 192px — shorten the sublabel while preserving its role or protocol.",
+            "subject": {
+              "diagramType": "workflow",
+              "node": "chunk_old",
+              "path": "/nodes/3/sublabel"
+            },
+            "evidence": {
+              "requiredFontPx": 7.3,
+              "maximumSlotFontPx": 8,
+              "canvasWidthPx": 1122,
+              "maximumCanvasWidthPx": 1240,
+              "requiredTextWidthPx": 192.72,
+              "availableTextWidthPx": 192
+            },
+            "supportedFixes": [
+              "shorten node \"chunk_old\" sublabel while preserving its role or protocol; move supplementary facts into a card"
+            ]
+          }
+        ],
+        "provenance": "failed",
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      },
+      "execution": "embedded-in-deliver"
+    },
+    "deliver": {
+      "status": "not-run",
+      "execution": "blocked-by-validate"
+    }
+  },
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  },
+  "diagnostics": [
+    {
+      "code": "workflow/sublabel-readability",
+      "severity": "error",
+      "message": "Sublabel \"CleanedData: 17 โฟลเดอร์ศิลปิน, 80 ไฟล์ .txt\" needs ~193px at the 7.3px minimum that stays readable on this 1122px canvas, but node \"read_old\" provides 192px — shorten the sublabel while preserving its role or protocol.",
+      "subject": {
+        "diagramType": "workflow",
+        "node": "read_old",
+        "path": "/nodes/1/sublabel"
+      },
+      "evidence": {
+        "requiredFontPx": 7.3,
+        "maximumSlotFontPx": 8,
+        "canvasWidthPx": 1122,
+        "maximumCanvasWidthPx": 1240,
+        "requiredTextWidthPx": 192.72,
+        "availableTextWidthPx": 192
+      },
+      "supportedFixes": [
+        "shorten node \"read_old\" sublabel while preserving its role or protocol; move supplementary facts into a card"
+      ]
+    },
+    {
+      "code": "workflow/sublabel-readability",
+      "severity": "error",
+      "message": "Sublabel \"รวมทีละ 2 บรรทัด เลื่อนหน้าต่างทีละ 1 บรรทัด\" needs ~193px at the 7.3px minimum that stays readable on this 1122px canvas, but node \"chunk_old\" provides 192px — shorten the sublabel while preserving its role or protocol.",
+      "subject": {
+        "diagramType": "workflow",
+        "node": "chunk_old",
+        "path": "/nodes/3/sublabel"
+      },
+      "evidence": {
+        "requiredFontPx": 7.3,
+        "maximumSlotFontPx": 8,
+        "canvasWidthPx": 1122,
+        "maximumCanvasWidthPx": 1240,
+        "requiredTextWidthPx": 192.72,
+        "availableTextWidthPx": 192
+      },
+      "supportedFixes": [
+        "shorten node \"chunk_old\" sublabel while preserving its role or protocol; move supplementary facts into a card"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\review-3\\buildindex-workflow.finalize.json",
+    "summaryReceipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\review-3\\buildindex-workflow.finalize-summary.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "validate",
+  "finishedAt": "2026-10-24T17:26:44.216Z",
+  "durationMs": 1214,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-24T13:51:36.530Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}

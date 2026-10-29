@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "workflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+    "sha256": "4110266237c3982d66c0b03dee45d5bf0e050cf648a97a8d5516fb0bd7983622",
+    "bytes": 17423
+  },
+  "artifact": {
+    "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+    "sha256": "e83deed69cc2feed1c68ba84a72b165ee25d1d2034deb43c97383433ed51ea83",
+    "bytes": 841432
+  },
+  "gates": {
+    "validate": "fail",
+    "deliver": "not-run",
+    "check": "not-run",
+    "browser-check": "not-run"
+  },
+  "failedStage": "validate",
+  "diagnostics": [
+    {
+      "code": "workflow/sublabel-readability",
+      "severity": "error",
+      "message": "Sublabel \"CleanedData: 17 โฟลเดอร์ศิลปิน, 80 ไฟล์ .txt\" needs ~193px at the 7.3px minimum that stays readable on this 1122px canvas, but node \"read_old\" provides 192px — shorten the sublabel while preserving its role or protocol.",
+      "subject": {
+        "diagramType": "workflow",
+        "node": "read_old",
+        "path": "/nodes/1/sublabel"
+      },
+      "evidence": {
+        "requiredFontPx": 7.3,
+        "maximumSlotFontPx": 8,
+        "canvasWidthPx": 1122,
+        "maximumCanvasWidthPx": 1240,
+        "requiredTextWidthPx": 192.72,
+        "availableTextWidthPx": 192
+      },
+      "supportedFixes": [
+        "shorten node \"read_old\" sublabel while preserving its role or protocol; move supplementary facts into a card"
+      ]
+    },
+    {
+      "code": "workflow/sublabel-readability",
+      "severity": "error",
+      "message": "Sublabel \"รวมทีละ 2 บรรทัด เลื่อนหน้าต่างทีละ 1 บรรทัด\" needs ~193px at the 7.3px minimum that stays readable on this 1122px canvas, but node \"chunk_old\" provides 192px — shorten the sublabel while preserving its role or protocol.",
+      "subject": {
+        "diagramType": "workflow",
+        "node": "chunk_old",
+        "path": "/nodes/3/sublabel"
+      },
+      "evidence": {
+        "requiredFontPx": 7.3,
+        "maximumSlotFontPx": 8,
+        "canvasWidthPx": 1122,
+        "maximumCanvasWidthPx": 1240,
+        "requiredTextWidthPx": 192.72,
+        "availableTextWidthPx": 192
+      },
+      "supportedFixes": [
+        "shorten node \"chunk_old\" sublabel while preserving its role or protocol; move supplementary facts into a card"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 2,
+    "shown": 2,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\review-3\\buildindex-workflow.finalize.json",
+    "summaryReceipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\review-3\\buildindex-workflow.finalize-summary.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-24T13:51:36.530Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 1214,
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  },
+  "nextAction": {
+    "action": "edit-in-place",
+    "candidate": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+    "constraint": "Preserve unaffected semantics and geometry; apply each diagnostic's supportedFixes, or the fix its message names, and do not replace the whole candidate.",
+    "then": "finalize-once"
+  }
+}

@@ -1,0 +1,379 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "workflow",
+  "quality": "showcase",
+  "startedAt": "2026-10-24T15:55:21.547Z",
+  "specification": {
+    "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+    "sha256": "49bafc25f57d063be05fbe83c89cdbe69c8423703907684586048d905e3ff175",
+    "bytes": 11816
+  },
+  "artifact": {
+    "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+    "sha256": "e83deed69cc2feed1c68ba84a72b165ee25d1d2034deb43c97383433ed51ea83",
+    "bytes": 841432
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\usEr\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "deliver",
+        "workflow",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "49bafc25f57d063be05fbe83c89cdbe69c8423703907684586048d905e3ff175",
+          "bytes": 11816
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 1196,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\usEr\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "deliver",
+        "workflow",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "f5505e5e-b30e-458f-8d26-7c64cf6a3110",
+        "ok": true,
+        "command": "deliver",
+        "type": "workflow",
+        "input": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\candidate.json",
+        "output": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "specification": {
+          "sha256": "49bafc25f57d063be05fbe83c89cdbe69c8423703907684586048d905e3ff175",
+          "bytes": 11816
+        },
+        "artifact": {
+          "sha256": "e83deed69cc2feed1c68ba84a72b165ee25d1d2034deb43c97383433ed51ea83",
+          "bytes": 841432
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "evidence": {
+          "verified": true,
+          "repository": "https://github.com/sompon-Dev/Model_Proj",
+          "revision": "02916b591aea761b07baeffad9e5b5459a7b094f",
+          "references": 14
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 408,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\usEr\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "check",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "artifact": {
+          "sha256": "e83deed69cc2feed1c68ba84a72b165ee25d1d2034deb43c97383433ed51ea83",
+          "bytes": 841432
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": []
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "showcase",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "metrics": {
+            "properCrossings": 0,
+            "resolvedCrossovers": 0,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": 75.3,
+            "desktopReadabilityIssues": 0,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 6,
+            "maxBends": 0,
+            "routesOverSuggestedBends": 0,
+            "maxStretch": 1,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": 8,
+            "minInteriorSegmentPx": null,
+            "shortSegmentCount": 1,
+            "shortEndpointSegmentCount": 1,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [],
+            "detours": []
+          },
+          "leadingSpace": {
+            "measured": false,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "legacy-930",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 930,
+            "actualBudgetPx": 930,
+            "limit": "legacy",
+            "requestedTargetPx": null,
+            "requestedTargetMet": null,
+            "hardFloorPx": 6,
+            "hardFloorMet": true,
+            "minimumOwner": {
+              "kind": "node",
+              "id": "dedup_prep"
+            },
+            "minimumSourceTextPx": 6.8,
+            "minimumProjectedTextPx": 6,
+            "semanticTextCount": 28
+          },
+          "issues": []
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "f5505e5e-b30e-458f-8d26-7c64cf6a3110"
+      }
+    },
+    "browser-check": {
+      "status": "fail",
+      "exitCode": 1,
+      "durationMs": 78,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\usEr\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "browser-check",
+        "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "fail",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "f5505e5e-b30e-458f-8d26-7c64cf6a3110",
+        "artifact": {
+          "path": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+          "sha256": "e83deed69cc2feed1c68ba84a72b165ee25d1d2034deb43c97383433ed51ea83",
+          "bytes": 841432
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "not-checked",
+          "executable": null
+        },
+        "diagnostics": [
+          {
+            "code": "viewer/evidence-path-conflict",
+            "severity": "error",
+            "message": "browser-check will not replace the existing unowned evidence path \"C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.browser-check.json\".",
+            "subject": {
+              "artifact": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+              "evidencePath": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.browser-check.json"
+            },
+            "evidence": {
+              "reason": {
+                "code": "ownership-artifact-mismatch"
+              }
+            },
+            "supportedFixes": [
+              "move the conflicting file aside, or choose a separate --out-dir, then rerun browser-check"
+            ]
+          }
+        ],
+        "containment": {
+          "status": "fail",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": []
+        },
+        "themeStates": {
+          "status": "fail",
+          "viewports": []
+        },
+        "readability": {
+          "status": "fail",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": []
+        },
+        "viewerChrome": {
+          "status": "fail",
+          "viewports": []
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "buildindex-workflow.browser-check.json",
+          "files": []
+        },
+        "error": "browser-check will not replace the existing unowned evidence path \"C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.browser-check.json\"."
+      }
+    }
+  },
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/evidence-path-conflict",
+      "severity": "error",
+      "message": "browser-check will not replace the existing unowned evidence path \"C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.browser-check.json\".",
+      "subject": {
+        "artifact": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.html",
+        "evidencePath": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.browser-check.json"
+      },
+      "evidence": {
+        "reason": {
+          "code": "ownership-artifact-mismatch"
+        }
+      },
+      "supportedFixes": [
+        "move the conflicting file aside, or choose a separate --out-dir, then rerun browser-check"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.finalize.json",
+    "summaryReceipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.finalize-summary.json",
+    "browserCheckReceipt": "C:\\Users\\usEr\\Documents\\Wokr\\Thesis\\.archify\\workflow-buildindex-20261024-205007\\buildindex-workflow.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "browser-check",
+  "finishedAt": "2026-10-24T15:55:24.362Z",
+  "durationMs": 2814,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-24T13:51:36.530Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}
