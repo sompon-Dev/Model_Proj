@@ -20,9 +20,9 @@ AddSong.py
     # เช่น song_genre="pop, rock", song_mood="เศร้า, อกหัก"
     # youtube_link/spotify_link ใส่ "" ได้ถ้ายังไม่มีลิงก์ (ไม่บังคับกรอก)
 """
+import re
 import sys
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
 
 import psycopg2.extras
 
@@ -97,17 +97,27 @@ def add_train_song(cursor, song_id, song_name, artist, lyric):
     print(f"  [ตาราง Train_Song] เก็บเนื้อเพลง '{song_name}' (artist={artist})")
 
 
+YOUTUBE_LINK_RE = re.compile(
+    r"^https?://(?:[a-z0-9-]+\.)*(?:youtube\.com/\S*[?&]v=|youtu\.be/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])",
+    re.IGNORECASE,
+)
+
+
 def get_thumbnail_link(youtube_link):
     """input: ลิงก์ YouTube 1 ลิงก์ -> output: ลิงก์รูป thumbnail (หรือ "" ถ้าหา video id ไม่เจอ)
     หลักการเดียวกับ imageFetching/FetchThumbnails.py — คัดลอกมาเฉพาะฟังก์ชันนี้ (ไม่ import ข้ามไฟล์
     เพราะ FetchThumbnails.py เอง import get_connection จาก main.py กลับมา จะเกิด circular import ซ้อนกันอีกที)"""
-    if not youtube_link:
-        return ""
-    query = parse_qs(urlparse(youtube_link).query)
-    video_id = query.get("v", [""])[0]
+    video_id = get_video_id(youtube_link)
     if not video_id:
         return ""
     return f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+
+
+def get_video_id(youtube_link):
+    """ตัดรหัสวิดีโอ 11 ตัวจากลิงก์ YouTube/YouTube Music (รองรับทั้ง ?v= และ youtu.be/) หาไม่เจอคืน ""
+    ตรรกะเดียวกับ getVideoId ใน Frontend_Ver_2/frontend_Ver2/src/EditAdmin.js ถ้าแก้ต้องแก้ทั้งคู่"""
+    match = YOUTUBE_LINK_RE.match((youtube_link or "").strip())
+    return match.group(1) if match else ""
 
 
 def add_to_song_table(cursor, song_name, artist, youtube_link, spotify_link):

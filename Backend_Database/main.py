@@ -116,6 +116,7 @@ class Update_SongData(BaseModel):
 # ใช้คู่กับหน้า EditAdmin.js: genre_ids/mood_ids คือรายการ "ทั้งหมด" ที่เพลงนี้ควรมีหลังบันทึก
 class EditSongData(BaseModel):
     artist: str
+    youtube_link: str
     genre_ids: list[int]
     mood_ids: list[int]
 
@@ -535,7 +536,7 @@ def search_Song(q: str = ""):
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cursor.execute(
-        'SELECT s.song_id, s.song_name, s."Artist", s."Image_Link", '
+        'SELECT s.song_id, s.song_name, s."Artist", s.youtube_link, s."Image_Link", '
         '  COALESCE((SELECT json_agg(json_build_object(\'genre_id\', g.genre_id, \'genre_name\', g.genre_name) ORDER BY g.genre_name) '
         '            FROM (SELECT DISTINCT genre_id FROM "Genre_Song" WHERE song_id = s.song_id) gs '
         '            JOIN "Genre" g ON g.genre_id = gs.genre_id), \'[]\'::json) AS genres, '
@@ -556,15 +557,36 @@ def search_Song(q: str = ""):
 # ไม่รับชื่อเพลง เพราะผลค้นหาจากโมเดลจับคู่กับตาราง Song ด้วยชื่อเพลง แก้ชื่อแล้วจะหาลิงก์ไม่เจอ
 @app.put("/Song/{song_id}/details")
 def edit_Song_details(song_id: int, data: EditSongData):
+    from AddSong import get_thumbnail_link  # deferred เหตุผลเดียวกับ /AddSong ด้านบน (AddSong.py import จากไฟล์นี้)
+
+    artist = data.artist.strip() or None
+    youtube_link = data.youtube_link.strip()
+
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
-        cursor.execute(
-            'UPDATE "Song" SET "Artist" = %s WHERE song_id = %s RETURNING song_id',
-            (data.artist.strip() or None, song_id),
-        )
-        if not cursor.fetchone():
+        cursor.execute('SELECT youtube_link, "Image_Link" FROM "Song" WHERE song_id = %s', (song_id,))
+        song = cursor.fetchone()
+        if not song:
             return {"status": "error", "error": f"ไม่พบเพลง song_id={song_id} ในตาราง Song"}
+
+        # เช็กเฉพาะตอนลิงก์เปลี่ยน: เพลงเก่าบางเพลงลิงก์ไม่ถูกต้องอยู่แล้ว (เช่นลิงก์เพลย์ลิสต์)
+        # ถ้าเช็กทุกครั้ง แอดมินจะแก้ genre/mood ของเพลงพวกนั้นไม่ได้จนกว่าจะแก้ลิงก์ก่อน
+        image_link = song["Image_Link"]
+        if youtube_link != song["youtube_link"]:
+            image_link = get_thumbnail_link(youtube_link)
+            if not image_link or len(youtube_link) > 255:
+                return {"status": "error", "error": "ลิงก์ไม่ถูกต้อง ต้องเป็นลิงก์เพลงเดี่ยวของ YouTube หรือ YouTube Music"}
+
+        cursor.execute(
+            'UPDATE "Song" SET "Artist" = %s, youtube_link = %s, "Image_Link" = %s WHERE song_id = %s',
+            (artist, youtube_link, image_link, song_id),
+        )
+        # history คัดลอกค่าเหล่านี้มาเก็บเอง ต้องตามให้ตรงไม่งั้นกดจากหน้า History จะเปิดลิงก์เก่าที่ผิด
+        cursor.execute(
+            'UPDATE "history" SET "Artist" = %s, youtube_link = %s, "Image_Link" = %s WHERE song_id = %s',
+            (artist, youtube_link, image_link, song_id),
+        )
 
         # ลบของเดิมแล้วใส่ชุดใหม่ใน transaction เดียว ถ้าพังกลางทางจะไม่มีเพลงที่ genre/mood หาย
         # Genre_Song/Mood_Song ไม่มี foreign key จึงต้อง SELECT จากตารางหลักเพื่อกรอง id ที่ไม่มีจริงออก
@@ -584,7 +606,7 @@ def edit_Song_details(song_id: int, data: EditSongData):
     finally:
         conn.close()
 
-    return {"status": "success"}
+    return {"status": "success", "youtube_link": youtube_link, "Image_Link": image_link}
 
 
 # ---------- อ่านรายชื่อเพลงตาม genre ที่ user ติ๊กมาจากหน้า Filter ----------

@@ -22,6 +22,10 @@ const API_URL = 'https://lyriseek-api-database.onrender.com'; // ⚠️ เป�
 const SEARCH_DELAY_MS = 300; // รอให้หยุดพิมพ์ก่อนค่อยค้น จะได้ไม่ยิง request ทุกตัวอักษร
 const MAX_SUGGESTIONS = 30; // genre มีกว่า 400 อัน โชว์เฉพาะที่ตรงกับที่พิมพ์ไม่เกินจำนวนนี้
 
+// ตัดรหัสวิดีโอจากลิงก์ YouTube/YouTube Music ตรรกะเดียวกับ get_video_id ใน Backend_Database/AddSong.py ถ้าแก้ต้องแก้ทั้งคู่
+const YOUTUBE_LINK_RE = /^https?:\/\/(?:[a-z0-9-]+\.)*(?:youtube\.com\/\S*[?&]v=|youtu\.be\/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/i;
+const getVideoId = (link) => link.trim().match(YOUTUBE_LINK_RE)?.[1] ?? '';
+
 // เรียก fetch พร้อม timeout กันหน้าค้างถ้า server ไม่ตอบ (เหมือนที่ทำไว้ใน AddSong.js)
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 30000) => {
     const controller = new AbortController();
@@ -101,6 +105,7 @@ const EditAdmin = ({ navigation }) => {
 
     const [editingSong, setEditingSong] = useState(null); // เพลงที่เปิด popup อยู่ (null = ปิด)
     const [artist, setArtist] = useState('');
+    const [youtubeLink, setYoutubeLink] = useState('');
     const [selectedGenres, setSelectedGenres] = useState([]);
     const [selectedMoods, setSelectedMoods] = useState([]);
     const [saving, setSaving] = useState(false);
@@ -155,6 +160,7 @@ const EditAdmin = ({ navigation }) => {
     const openEditor = (song) => {
         setEditingSong(song);
         setArtist(song.Artist || '');
+        setYoutubeLink(song.youtube_link || '');
         setSelectedGenres(song.genres);
         setSelectedMoods(song.moods);
     };
@@ -167,7 +173,22 @@ const EditAdmin = ({ navigation }) => {
         );
     };
 
+    // เช็กเฉพาะตอนลิงก์เปลี่ยน (เหมือน backend) เพลงเก่าที่ลิงก์ใช้ไม่ได้อยู่แล้วยังแก้ genre/mood ได้
+    const linkChanged = editingSong !== null && youtubeLink.trim() !== (editingSong.youtube_link || '');
+    const linkInvalid = linkChanged && !getVideoId(youtubeLink);
+    let previewImage = editingSong?.Image_Link;
+    if (linkChanged) {
+        previewImage = linkInvalid
+            ? null
+            : `https://img.youtube.com/vi/${getVideoId(youtubeLink)}/hqdefault.jpg`;
+    }
+
     const handleSave = async () => {
+        if (linkInvalid) {
+            Alert.alert('ลิงก์ไม่ถูกต้อง', 'ต้องเป็นลิงก์เพลงเดี่ยวของ YouTube หรือ YouTube Music');
+            return;
+        }
+
         setSaving(true);
         try {
             const res = await fetchWithTimeout(`${API_URL}/Song/${editingSong.song_id}/details`, {
@@ -175,6 +196,7 @@ const EditAdmin = ({ navigation }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     artist: artist.trim(),
+                    youtube_link: youtubeLink.trim(),
                     genre_ids: selectedGenres.map((g) => g.genre_id),
                     mood_ids: selectedMoods.map((m) => m.mood_id),
                 }),
@@ -185,6 +207,8 @@ const EditAdmin = ({ navigation }) => {
                 const updated = {
                     ...editingSong,
                     Artist: artist.trim() || null,
+                    youtube_link: json.youtube_link,
+                    Image_Link: json.Image_Link,
                     genres: selectedGenres,
                     moods: selectedMoods,
                 };
@@ -345,6 +369,32 @@ const EditAdmin = ({ navigation }) => {
                                             onChangeText={setArtist}
                                         />
                                     </View>
+                                </View>
+
+                                <View style={styles.fieldGroup}>
+                                    <Text style={styles.fieldLabel}>ลิงก์ YouTube Music</Text>
+                                    <View style={styles.inputBox}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="https://music.youtube.com/watch?v=..."
+                                            placeholderTextColor="#6B7280"
+                                            value={youtubeLink}
+                                            onChangeText={setYoutubeLink}
+                                            autoCapitalize="none"
+                                            autoCorrect={false}
+                                            keyboardType="url"
+                                        />
+                                    </View>
+                                    {linkInvalid ? (
+                                        <Text style={styles.errorText}>
+                                            ลิงก์ไม่ถูกต้อง ต้องเป็นลิงก์เพลงเดี่ยวของ YouTube หรือ YouTube Music
+                                        </Text>
+                                    ) : null}
+                                    {previewImage ? (
+                                        <Image source={{ uri: previewImage }} style={styles.coverPreview} />
+                                    ) : (
+                                        <View style={styles.coverPreview} />
+                                    )}
                                 </View>
 
                                 <CategoryPicker
@@ -556,6 +606,20 @@ const styles = StyleSheet.create({
         color: '#888888',
         marginTop: 10,
         marginLeft: 4,
+    },
+    errorText: {
+        fontSize: 13,
+        color: '#DC2626',
+        marginTop: 8,
+        marginLeft: 4,
+    },
+    coverPreview: {
+        width: 160,
+        height: 120,
+        borderRadius: 10,
+        backgroundColor: '#E2E8F0',
+        marginTop: 12,
+        alignSelf: 'center',
     },
     buttonContainer: {
         alignItems: 'center',
