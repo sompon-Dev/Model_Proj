@@ -549,7 +549,7 @@ def read_Song_by_genre(genre_ids: str):
     # LIMIT 200: genre ยอดนิยม (เช่น "thai" มีเพลงกว่า 5,000 เพลง) ถ้าไม่จำกัดจะส่งข้อมูลมหาศาล
     # กลับไปให้แอป render ทีเดียวหมด ทำให้แอปค้าง — 200 เพลงแรกพอสำหรับโชว์ผลลัพธ์แล้ว
     cursor.execute(
-        'SELECT song_id, song_name, "Artist", spotify_Link, youtube_link FROM "Song" '
+        'SELECT song_id, song_name, "Artist", spotify_Link, youtube_link, "Image_Link" FROM "Song" '
         'WHERE song_id = ANY(%s) ORDER BY song_id LIMIT 200',
         (song_id_list,),
     )
@@ -572,7 +572,7 @@ def read_Song_by_names(data: SongNamesData):
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cursor.execute(
-        'SELECT song_id, song_name, youtube_link FROM "Song" WHERE song_name = ANY(%s)',
+        'SELECT song_id, song_name, youtube_link, "Image_Link" FROM "Song" WHERE song_name = ANY(%s)',
         (data.song_names,),
     )
     songs = cursor.fetchall()

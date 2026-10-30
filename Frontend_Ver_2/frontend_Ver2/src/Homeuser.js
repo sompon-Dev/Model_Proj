@@ -271,6 +271,7 @@ const Homeuser = ({ navigation }) => {
                 title: song.song_name,
                 artist: song.Artist,
                 youtube_link: song.youtube_link,
+                image_link: song.Image_Link,
             }));
 
             navigation?.navigate('Result', { results });
@@ -343,6 +344,7 @@ const Homeuser = ({ navigation }) => {
                     title: song.song_name,
                     artist: song.artist,
                     youtube_link: matchedSong ? matchedSong.youtube_link : undefined,
+                    image_link: matchedSong ? matchedSong.Image_Link : undefined,
                 });
             });
 

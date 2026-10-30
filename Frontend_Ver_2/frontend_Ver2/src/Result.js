@@ -52,6 +52,12 @@ const Result = ({ navigation, route }) => {
             activeOpacity={0.8}
             onPress={() => openYoutube(item)}
         >
+            {item.image_link ? (
+                <Image source={{ uri: item.image_link }} style={styles.songImage} />
+            ) : (
+                <View style={styles.songImage} />
+            )}
+
             <View style={styles.songInfo}>
                 <Text style={styles.songTitle} numberOfLines={2}>
                     {item.title}
@@ -177,6 +183,13 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.04,
         shadowRadius: 4,
         elevation: 1,
+    },
+    songImage: {
+        width: 64,
+        height: 48,
+        borderRadius: 8,
+        backgroundColor: '#E2E8F0',
+        marginRight: 12,
     },
     songInfo: {
         flex: 1,
