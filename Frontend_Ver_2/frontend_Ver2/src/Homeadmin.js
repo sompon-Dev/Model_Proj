@@ -159,8 +159,22 @@ const Homeadmin = ({ navigation }) => {
                             </View>
                         </TouchableOpacity>
 
-                        {/* ช่องว่างให้การ์ด Edit Song กว้างครึ่งแถวเท่าการ์ดอื่น */}
-                        <View style={styles.cardSpacer} />
+                        {/* Search User Card */}
+                        <TouchableOpacity
+                            style={[styles.card, styles.searchUserCard]}
+                            activeOpacity={0.8}
+                            onPress={() => {
+                                navigation?.navigate('SearchUser');
+                            }}
+                        >
+                            <View style={[styles.iconCircle, styles.searchUserIconCircle]}>
+                                <Feather name="users" size={26} color="#FFFFFF" />
+                            </View>
+                            <View style={styles.cardFooter}>
+                                <Text style={styles.cardTitle}>Search User</Text>
+                                <Feather name="chevron-right" size={24} color="#1E1E1E" />
+                            </View>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </ScrollView>
@@ -276,9 +290,8 @@ const styles = StyleSheet.create({
     editSongCard: {
         backgroundColor: '#FFE7B8',
     },
-    cardSpacer: {
-        flex: 1,
-        padding: 16, // เท่ากับ styles.card ไม่งั้น flex แบ่งความกว้างให้การ์ดข้างๆ กว้างเกินครึ่งแถว
+    searchUserCard: {
+        backgroundColor: '#D6E8F9',
     },
     iconCircle: {
         width: 52,
@@ -301,6 +314,9 @@ const styles = StyleSheet.create({
     },
     editSongIconCircle: {
         backgroundColor: '#F5B041',
+    },
+    searchUserIconCircle: {
+        backgroundColor: '#6CA6D9',
     },
     cardFooter: {
         flexDirection: 'row',

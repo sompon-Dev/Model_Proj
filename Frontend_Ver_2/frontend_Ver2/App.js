@@ -15,6 +15,7 @@ import History from './src/History';
 import Profile from './src/Profile';
 import AdminProfile from './src/AdminProfile';
 import EditAdmin from './src/EditAdmin';
+import SearchUser from './src/SearchUser';
 
 const Stack = createNativeStackNavigator();
 
@@ -81,6 +82,10 @@ export default function App() {
           <Stack.Screen
             name="EditAdmin"
             component={EditAdmin}
+          />
+          <Stack.Screen
+            name="SearchUser"
+            component={SearchUser}
           />
         </Stack.Navigator>
       </NavigationContainer>

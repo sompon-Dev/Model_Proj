@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
     View,
@@ -32,32 +33,73 @@ const Login = ({ navigation }) => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // ฟังก์ชันช่วยเช็ก role จากตาราง users เพื่อนำทางไปหน้า Home ที่ถูกต้อง
+    // ตรวจสอบสถานะ Ban และ Role ของ User
+    const checkUserBan = async (userId) => {
+        const { data: userData, error } = await supabase
+            .from('users')
+            .select('role, username, ban')
+            .eq('users_id', userId)
+            .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+
+        // ไม่มี trigger สร้างแถวใน users ให้อัตโนมัติ คนที่เข้าด้วย Google/Facebook จึงอาจไม่มีแถว
+        // ถ้า throw ตรงนี้จะเข้าแอปไม่ได้เลย ให้เข้าแบบผู้ใช้ทั่วไป (ไม่มีแถว = ไม่เคยถูกแบน)
+        if (!userData) {
+            return { role: 'user' };
+        }
+
+        // ถ้าถูกแบน ให้ Logout ทันที
+        if (userData.ban === true) {
+            await supabase.auth.signOut();
+
+            Alert.alert(
+                'Account Suspended',
+                'บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ'
+            );
+
+            return false;
+        }
+
+        return userData;
+    };
+
+    // ตรวจสอบ Ban ก่อนนำทางไปหน้า Home
     const navigateByUserRole = async (userId) => {
         try {
-            const { data: userData, error } = await supabase
-                .from('users')
-                .select('role, username')
-                .eq('users_id', userId)
-                .single();
+            const userData = await checkUserBan(userId);
 
-            if (!error && userData?.role === 'admin') {
+            if (!userData) {
+                return;
+            }
+
+            if (userData.role === 'admin') {
                 navigation?.navigate('Homeadmin', {
-                    userId: userId,
-                    username: userData?.username,
+                    userId,
+                    username: userData.username,
                 });
             } else {
                 navigation?.navigate('Homeuser', {
-                    userId: userId,
-                    username: userData?.username,
+                    userId,
+                    username: userData.username,
                 });
             }
+
         } catch (err) {
-            console.log('Error checking role:', err);
-            navigation?.navigate('Homeuser');
+            console.log('User verification error:', err);
+
+            await supabase.auth.signOut();
+
+            Alert.alert(
+                'Login Failed',
+                err.message || 'ไม่สามารถตรวจสอบบัญชีได้'
+            );
         }
     };
 
+    // Email / Username Login
     const handleLogin = async () => {
         const input = email.trim();
 
@@ -102,6 +144,7 @@ const Login = ({ navigation }) => {
 
             if (error) {
                 console.log('Login error:', error.message);
+
                 Alert.alert(
                     'เข้าสู่ระบบไม่สำเร็จ',
                     'Username/Email หรือ Password ไม่ถูกต้อง หรือบัญชียังไม่ได้ยืนยันอีเมล'
@@ -110,11 +153,12 @@ const Login = ({ navigation }) => {
             }
 
             if (data.session?.user) {
-                // เช็ก role แล้วพาไปหน้าที่ถูกต้อง
                 await navigateByUserRole(data.session.user.id);
             }
+
         } catch (error) {
             console.log('Unexpected login error:', error);
+
             Alert.alert(
                 'เกิดข้อผิดพลาด',
                 'กรุณาลองใหม่อีกครั้ง'
@@ -124,9 +168,10 @@ const Login = ({ navigation }) => {
         }
     };
 
-    // ฟังก์ชันสำหรับล็อกอินด้วย Google
+    // Google Login
     const handleGoogleLogin = async () => {
         setLoading(true);
+
         try {
             const redirectTo = AuthSession.makeRedirectUri({
                 scheme: 'lyriseek',
@@ -146,7 +191,10 @@ const Login = ({ navigation }) => {
             if (error) throw error;
 
             if (data?.url) {
-                const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+                const result = await WebBrowser.openAuthSessionAsync(
+                    data.url,
+                    redirectTo
+                );
 
                 if (result.type === 'success') {
                     const { url } = result;
@@ -162,34 +210,54 @@ const Login = ({ navigation }) => {
 
                     if (params.code) {
                         const { error: exchangeError } =
-                            await supabase.auth.exchangeCodeForSession(params.code);
+                            await supabase.auth.exchangeCodeForSession(
+                                params.code
+                            );
+
                         if (exchangeError) throw exchangeError;
-                    } else if (params.access_token && params.refresh_token) {
-                        const { error: sessionError } = await supabase.auth.setSession({
-                            access_token: params.access_token,
-                            refresh_token: params.refresh_token,
-                        });
+
+                    } else if (
+                        params.access_token &&
+                        params.refresh_token
+                    ) {
+                        const { error: sessionError } =
+                            await supabase.auth.setSession({
+                                access_token: params.access_token,
+                                refresh_token: params.refresh_token,
+                            });
 
                         if (sessionError) throw sessionError;
                     }
 
-                    // ดึงข้อมูล User ล่าสุดแล้วส่งไปเช็ก role
-                    const { data: { user } } = await supabase.auth.getUser();
+                    const {
+                        data: { user },
+                        error: userError,
+                    } = await supabase.auth.getUser();
+
+                    if (userError) throw userError;
+
                     if (user) {
                         await navigateByUserRole(user.id);
                     }
                 }
             }
+
         } catch (err) {
             console.log('Google Login Error:', err);
-            Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้');
+
+            Alert.alert(
+                'เกิดข้อผิดพลาด',
+                'ไม่สามารถเข้าสู่ระบบด้วย Google ได้'
+            );
         } finally {
             setLoading(false);
         }
     };
 
+    // Facebook Login
     const handleFacebookLogin = async () => {
         setLoading(true);
+
         try {
             const redirectTo = AuthSession.makeRedirectUri({
                 scheme: 'lyriseek',
@@ -209,7 +277,10 @@ const Login = ({ navigation }) => {
             if (error) throw error;
 
             if (data?.url) {
-                const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+                const result = await WebBrowser.openAuthSessionAsync(
+                    data.url,
+                    redirectTo
+                );
 
                 if (result.type === 'success') {
                     const { url } = result;
@@ -225,27 +296,45 @@ const Login = ({ navigation }) => {
 
                     if (params.code) {
                         const { error: exchangeError } =
-                            await supabase.auth.exchangeCodeForSession(params.code);
+                            await supabase.auth.exchangeCodeForSession(
+                                params.code
+                            );
+
                         if (exchangeError) throw exchangeError;
-                    } else if (params.access_token && params.refresh_token) {
-                        const { error: sessionError } = await supabase.auth.setSession({
-                            access_token: params.access_token,
-                            refresh_token: params.refresh_token,
-                        });
+
+                    } else if (
+                        params.access_token &&
+                        params.refresh_token
+                    ) {
+                        const { error: sessionError } =
+                            await supabase.auth.setSession({
+                                access_token: params.access_token,
+                                refresh_token: params.refresh_token,
+                            });
 
                         if (sessionError) throw sessionError;
                     }
 
-                    // ดึงข้อมูล User ล่าสุดแล้วส่งไปเช็ก role
-                    const { data: { user } } = await supabase.auth.getUser();
+                    const {
+                        data: { user },
+                        error: userError,
+                    } = await supabase.auth.getUser();
+
+                    if (userError) throw userError;
+
                     if (user) {
                         await navigateByUserRole(user.id);
                     }
                 }
             }
+
         } catch (err) {
             console.log('Facebook Login Error:', err);
-            Alert.alert('เกิดข้อผิดพลาด', 'ไม่สามารถเข้าสู่ระบบด้วย Facebook ได้');
+
+            Alert.alert(
+                'เกิดข้อผิดพลาด',
+                'ไม่สามารถเข้าสู่ระบบด้วย Facebook ได้'
+            );
         } finally {
             setLoading(false);
         }
@@ -265,6 +354,7 @@ const Login = ({ navigation }) => {
                     <Text style={styles.title}>Login</Text>
 
                     <View style={styles.formContainer}>
+
                         {/* Username or Email */}
                         <View style={styles.inputContainer}>
                             <Feather
@@ -343,7 +433,10 @@ const Login = ({ navigation }) => {
 
                         {/* Google button */}
                         <TouchableOpacity
-                            style={[styles.socialButton, loading && styles.disabledButton]}
+                            style={[
+                                styles.socialButton,
+                                loading && styles.disabledButton,
+                            ]}
                             activeOpacity={0.85}
                             onPress={handleGoogleLogin}
                             disabled={loading}
@@ -380,6 +473,7 @@ const Login = ({ navigation }) => {
                                 Continue with Facebook
                             </Text>
                         </TouchableOpacity>
+
                     </View>
                 </KeyboardAvoidingView>
             </TouchableWithoutFeedback>
