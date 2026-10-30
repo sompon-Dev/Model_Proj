@@ -292,10 +292,10 @@ const Homeuser = ({ navigation }) => {
 
         setLoadingSongs(true);
 
-        // ขยายจาก 10 วิ เป็น 30 วิ ด้วยเหตุผลเดียวกับ handleApplyPress ด้านบน — โมเดลค้นหา (Ver.5)
-        // อยู่บน Modal ซึ่ง scale-to-zero เหมือนกัน วัดจริง cold start ได้ถึง ~21 วิ (ดู Test/)
+        // โมเดลค้นหา (Ver.5) อยู่บน Modal ซึ่ง scale-to-zero วัดจริง cold start ได้ ~24 วิ และมีรอบที่เกิน 30 วิ
+        // จนขึ้น "ไม่พบเพลง" ทั้งที่โมเดลแค่กำลังตื่น จึงรอได้นานกว่า handleApplyPress ด้านบน
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
 
         try {
             const res = await fetch(SEARCH_URL, {
@@ -350,7 +350,7 @@ const Homeuser = ({ navigation }) => {
 
             navigation?.navigate('Result', { results });
         } catch (err) {
-            console.log('ค้นหาเพลงไม่สำเร็จ (หรือรอโมเดลนานเกิน 10 วิ):', err);
+            console.log('ค้นหาเพลงไม่สำเร็จ (หรือรอโมเดลนานเกิน 60 วิ):', err);
             navigation?.navigate('Result', { results: [] });
         } finally {
             clearTimeout(timeoutId);
