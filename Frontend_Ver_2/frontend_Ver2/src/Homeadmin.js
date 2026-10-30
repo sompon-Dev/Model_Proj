@@ -139,6 +139,29 @@ const Homeadmin = ({ navigation }) => {
                             </View>
                         </TouchableOpacity>
                     </View>
+
+                    {/* Row 3 */}
+                    <View style={styles.gridRow}>
+                        {/* Edit Song Card */}
+                        <TouchableOpacity
+                            style={[styles.card, styles.editSongCard]}
+                            activeOpacity={0.8}
+                            onPress={() => {
+                                navigation?.navigate('EditAdmin');
+                            }}
+                        >
+                            <View style={[styles.iconCircle, styles.editSongIconCircle]}>
+                                <Feather name="edit-2" size={24} color="#FFFFFF" />
+                            </View>
+                            <View style={styles.cardFooter}>
+                                <Text style={styles.cardTitle}>Edit Song</Text>
+                                <Feather name="chevron-right" size={24} color="#1E1E1E" />
+                            </View>
+                        </TouchableOpacity>
+
+                        {/* ช่องว่างให้การ์ด Edit Song กว้างครึ่งแถวเท่าการ์ดอื่น */}
+                        <View style={styles.cardSpacer} />
+                    </View>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -250,6 +273,13 @@ const styles = StyleSheet.create({
     mostSearchCard: {
         backgroundColor: '#FCD0E3',
     },
+    editSongCard: {
+        backgroundColor: '#FFE7B8',
+    },
+    cardSpacer: {
+        flex: 1,
+        padding: 16, // เท่ากับ styles.card ไม่งั้น flex แบ่งความกว้างให้การ์ดข้างๆ กว้างเกินครึ่งแถว
+    },
     iconCircle: {
         width: 52,
         height: 52,
@@ -268,6 +298,9 @@ const styles = StyleSheet.create({
     },
     mostSearchIconCircle: {
         backgroundColor: '#F788BC',
+    },
+    editSongIconCircle: {
+        backgroundColor: '#F5B041',
     },
     cardFooter: {
         flexDirection: 'row',

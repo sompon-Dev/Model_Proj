@@ -113,6 +113,12 @@ class Update_SongData(BaseModel):
     spotify_Link:str
     youtube_link:str
 
+# ใช้คู่กับหน้า EditAdmin.js: genre_ids/mood_ids คือรายการ "ทั้งหมด" ที่เพลงนี้ควรมีหลังบันทึก
+class EditSongData(BaseModel):
+    artist: str
+    genre_ids: list[int]
+    mood_ids: list[int]
+
 class GenreData(BaseModel):
     genre_name: str
 
@@ -513,6 +519,72 @@ def read_Song():
     conn.close()
 
     return {"status": "success", "data": Song}
+
+
+# ---------- หน้า EditAdmin.js: ค้นหาเพลงจากคำในชื่อเพลง พร้อม genre/mood ของแต่ละเพลง ----------
+# ต้องประกาศ route คงที่นี้ไว้ "ก่อน" /Song/{song_id} ด้านล่าง เหตุผลเดียวกับ /Song/by_genre
+@app.get("/Song/search")
+def search_Song(q: str = ""):
+    keyword = q.strip()
+    if not keyword:
+        return {"status": "success", "data": []}
+
+    # ESCAPE กัน % และ _ ที่แอดมินพิมพ์มาไม่ให้ถูกตีความเป็น wildcard ของ ILIKE
+    pattern = "%" + keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        'SELECT s.song_id, s.song_name, s."Artist", s."Image_Link", '
+        '  COALESCE((SELECT json_agg(json_build_object(\'genre_id\', g.genre_id, \'genre_name\', g.genre_name) ORDER BY g.genre_name) '
+        '            FROM (SELECT DISTINCT genre_id FROM "Genre_Song" WHERE song_id = s.song_id) gs '
+        '            JOIN "Genre" g ON g.genre_id = gs.genre_id), \'[]\'::json) AS genres, '
+        '  COALESCE((SELECT json_agg(json_build_object(\'mood_id\', m.mood_id, \'mood_name\', m.mood_name) ORDER BY m.mood_name) '
+        '            FROM (SELECT DISTINCT mood_id FROM "Mood_Song" WHERE song_id = s.song_id) ms '
+        '            JOIN "Mood" m ON m.mood_id = ms.mood_id), \'[]\'::json) AS moods '
+        'FROM "Song" s WHERE s.song_name ILIKE %s ESCAPE \'\\\' '
+        'ORDER BY s.song_name, s.song_id LIMIT 50',
+        (pattern,),
+    )
+    songs = cursor.fetchall()
+    conn.close()
+
+    return {"status": "success", "data": songs}
+
+
+# ---------- หน้า EditAdmin.js: บันทึกศิลปินและ genre/mood ของเพลง 1 เพลง ----------
+# ไม่รับชื่อเพลง เพราะผลค้นหาจากโมเดลจับคู่กับตาราง Song ด้วยชื่อเพลง แก้ชื่อแล้วจะหาลิงก์ไม่เจอ
+@app.put("/Song/{song_id}/details")
+def edit_Song_details(song_id: int, data: EditSongData):
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cursor.execute(
+            'UPDATE "Song" SET "Artist" = %s WHERE song_id = %s RETURNING song_id',
+            (data.artist.strip() or None, song_id),
+        )
+        if not cursor.fetchone():
+            return {"status": "error", "error": f"ไม่พบเพลง song_id={song_id} ในตาราง Song"}
+
+        # ลบของเดิมแล้วใส่ชุดใหม่ใน transaction เดียว ถ้าพังกลางทางจะไม่มีเพลงที่ genre/mood หาย
+        # Genre_Song/Mood_Song ไม่มี foreign key จึงต้อง SELECT จากตารางหลักเพื่อกรอง id ที่ไม่มีจริงออก
+        cursor.execute('DELETE FROM "Genre_Song" WHERE song_id = %s', (song_id,))
+        cursor.execute(
+            'INSERT INTO "Genre_Song" (song_id, genre_id) '
+            'SELECT %s, genre_id FROM "Genre" WHERE genre_id = ANY(%s)',
+            (song_id, data.genre_ids),
+        )
+        cursor.execute('DELETE FROM "Mood_Song" WHERE song_id = %s', (song_id,))
+        cursor.execute(
+            'INSERT INTO "Mood_Song" (song_id, mood_id) '
+            'SELECT %s, mood_id FROM "Mood" WHERE mood_id = ANY(%s)',
+            (song_id, data.mood_ids),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"status": "success"}
 
 
 # ---------- อ่านรายชื่อเพลงตาม genre ที่ user ติ๊กมาจากหน้า Filter ----------
