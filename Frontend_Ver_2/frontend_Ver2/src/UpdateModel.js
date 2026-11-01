@@ -14,6 +14,8 @@ import { Feather } from '@expo/vector-icons';
 
 const TRAIN_SONG_URL = 'https://lyriseek-api-database.onrender.com/Train_Song'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
 const UPDATE_MODEL_URL = 'https://lyriseek-api-database.onrender.com/Train_Song/update_model'; // ⚠️ IP เดียวกับ TRAIN_SONG_URL
+const UPDATE_MODEL_POLL_MS = 3000;
+const UPDATE_MODEL_MAX_WAIT_MS = 360000; // มากกว่า timeout 280 วิที่ main.py รอ Modal
 
 // เรียก fetch พร้อม timeout กันหน้าค้างถ้า server ไม่ตอบ (เหมือนที่ทำไว้ใน Homeuser.js/AddSong.js)
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
@@ -50,8 +52,7 @@ const UpdateModel = ({ navigation }) => {
         );
     };
 
-    // กดปุ่ม Enter: เอาเพลงที่ติ๊กไว้ไปเทรนเข้าโมเดล Ver.5 (ขั้นตอนนี้ช้า เพราะต้องโหลดโมเดล E5 +
-    // encode เพลงใหม่ ตั้ง timeout ไว้นานหน่อย 5 นาที กันค้างแต่ก็ไม่ตัดจบเร็วเกินไป)
+    // กดปุ่ม Enter: เอาเพลงที่ติ๊กไว้ไปเทรนเข้าโมเดล Ver.5
     const handleUpdateModel = () => {
         if (selectedIds.length === 0) {
             Alert.alert('แจ้งเตือน', 'กรุณาติ๊กเลือกเพลงอย่างน้อย 1 เพลงก่อน');
@@ -68,9 +69,28 @@ const UpdateModel = ({ navigation }) => {
         );
     };
 
+    // ถามผลจาก server เป็นระยะจนกว่างานจะจบ เน็ตสะดุดบางรอบไม่เป็นไร ถามรอบถัดไปได้
+    const waitForUpdateModel = async (jobId) => {
+        const deadline = Date.now() + UPDATE_MODEL_MAX_WAIT_MS;
+
+        while (Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, UPDATE_MODEL_POLL_MS));
+            try {
+                const res = await fetchWithTimeout(`${UPDATE_MODEL_URL}/${jobId}`);
+                const json = await res.json();
+                if (json.status !== 'running') return json;
+            } catch (err) {
+                console.log('ถามผลอัปเดตโมเดลไม่สำเร็จ จะลองใหม่:', err);
+            }
+        }
+
+        return { status: 'error', error: 'รอนานเกินไป กลับเข้าหน้านี้ใหม่เพื่อดูเพลงที่เหลือ' };
+    };
+
     const submitUpdateModel = async () => {
         setSubmitting(true);
         try {
+            // เผื่อ Render เพิ่งตื่น (วัดจริงได้ถึง ~86 วิ)
             const res = await fetchWithTimeout(
                 UPDATE_MODEL_URL,
                 {
@@ -78,9 +98,12 @@ const UpdateModel = ({ navigation }) => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ newsong_ids: selectedIds }),
                 },
-                300000
+                120000
             );
-            const json = await res.json();
+            const started = await res.json();
+            const json = started.status === 'started'
+                ? await waitForUpdateModel(started.job_id)
+                : started;
 
             if (json.status === 'success') {
                 Alert.alert('สำเร็จ', `เทรนเพลงเข้าโมเดลเรียบร้อยแล้ว ${json.trained_song_ids.length} เพลง`);
@@ -165,6 +188,11 @@ const UpdateModel = ({ navigation }) => {
 
                     {/* Enter Button: เอาเพลงที่ติ๊กไว้ไปเทรนเข้าโมเดล */}
                     <View style={styles.buttonContainer}>
+                        {submitting && (
+                            <Text style={styles.submittingText}>
+                                กำลังเพิ่มเพลงเข้าโมเดล อาจใช้เวลา 1–2 นาที
+                            </Text>
+                        )}
                         <TouchableOpacity
                             style={styles.enterButton}
                             activeOpacity={0.85}
@@ -268,6 +296,12 @@ const styles = StyleSheet.create({
     buttonContainer: {
         alignItems: 'center',
         marginTop: 20,
+    },
+    submittingText: {
+        fontSize: 14,
+        color: '#556AB0',
+        textAlign: 'center',
+        marginBottom: 12,
     },
     enterButton: {
         backgroundColor: '#98A6FE',

@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 import psycopg2
 import psycopg2.extras
+import threading
 import uuid
 
 
@@ -348,28 +349,16 @@ def read_Train_Song():
 MODAL_UPDATE_MODEL_URL = "https://sompon-dev--lyriseek-search-web.us-east.modal.run/update_model"
 
 
-@app.post("/Train_Song/update_model")
-def update_model_with_selected_songs(data: UpdateModelData):
-    """ขั้นตอน: (1) ดึงเพลงที่ admin ติ๊กไว้จากตาราง Train_Song (2) ส่งเพลงพวกนี้ไปให้ Ver.5/API.py
-    (รันอยู่บน Modal) เทรนเข้า index จริง ผ่าน HTTP POST (3) ลบเฉพาะเพลงที่เพิ่งเทรนไปออกจาก
-    Train_Song — เพลงที่ admin ไม่ได้ติ๊กยังอยู่ใน Train_Song เหมือนเดิม
-    หมายเหตุ: ขั้นตอนนี้ช้า (ฝั่ง Modal ต้อง encode เพลงใหม่) request จะค้างรอจนกว่าจะเสร็จ"""
-    if not data.newsong_ids:
-        return {"status": "error", "error": "ไม่ได้เลือกเพลงเลย"}
+# งานอัปเดตโมเดลที่กำลังทำ/เพิ่งเสร็จ เก็บในหน่วยความจำพอ เพราะงานนี้ใช้แค่ไม่กี่นาที ถ้า Render รีสตาร์ท
+# ระหว่างทาง เพลงยังอยู่ใน Train_Song ครบ แอดมินกดใหม่ได้ (Modal ข้ามเพลงที่เข้าโมเดลไปแล้วเอง)
+update_model_jobs = {}
+update_model_lock = threading.Lock()
 
+
+def run_update_model_job(job_id, rows):
+    """ทำงานใน thread แยก: (1) ส่งเพลงไปให้ Ver.5/API.py (รันอยู่บน Modal) เทรนเข้า index จริง
+    (2) ลบเฉพาะเพลงที่เพิ่งเทรนไปออกจาก Train_Song แล้วเก็บผลไว้ให้แอปมาถาม"""
     import requests
-
-    conn = get_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute(
-        'SELECT newsong_id, newsong_name, newsong_artist, newsong_lyrics FROM "Train_Song" WHERE newsong_id = ANY(%s)',
-        (data.newsong_ids,),
-    )
-    rows = cursor.fetchall()
-
-    if not rows:
-        conn.close()
-        return {"status": "error", "error": "ไม่พบเพลงที่เลือกในตาราง Train_Song"}
 
     songs_payload = [
         {
@@ -388,24 +377,66 @@ def update_model_with_selected_songs(data: UpdateModelData):
             timeout=280,  # น้อยกว่า 300 วิที่ Modal ตั้งไว้นิดหน่อย กันเคส Modal กำลังจะ timeout พอดีแต่เรายังรอไม่ทัน
         )
         result = res.json()
+
+        if result.get("status") != "success":
+            print(f"[UpdateModel] Modal อัปเดตโมเดลไม่สำเร็จ: {result.get('error')} (ไม่ลบอะไรออกจาก Train_Song ไว้ลองใหม่ได้)")
+            update_model_jobs[job_id] = {"status": "error", "error": result.get("error", "อัปเดตโมเดลไม่สำเร็จ")}
+            return
+
+        trained_ids = [row["newsong_id"] for row in rows]
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM "Train_Song" WHERE newsong_id = ANY(%s)', (trained_ids,))
+        conn.commit()
+        conn.close()
+
+        print(f"[UpdateModel] ลบ {len(trained_ids)} เพลงออกจาก Train_Song แล้ว (เทรนเข้าโมเดลสำเร็จ)")
+        update_model_jobs[job_id] = {
+            "status": "success",
+            "trained_song_ids": trained_ids,
+            **{k: v for k, v in result.items() if k != "status"},
+        }
     except Exception as e:
-        conn.close()
         print(f"[UpdateModel] เรียก Modal ไม่สำเร็จ: {e} (ไม่ลบอะไรออกจาก Train_Song ไว้ลองใหม่ได้)")
-        return {"status": "error", "error": f"เชื่อมต่อโมเดลไม่สำเร็จ: {e}"}
+        update_model_jobs[job_id] = {"status": "error", "error": f"เชื่อมต่อโมเดลไม่สำเร็จ: {e}"}
 
-    if result.get("status") != "success":
-        conn.close()
-        print(f"[UpdateModel] Modal อัปเดตโมเดลไม่สำเร็จ: {result.get('error')} (ไม่ลบอะไรออกจาก Train_Song ไว้ลองใหม่ได้)")
-        return {"status": "error", "error": result.get("error", "อัปเดตโมเดลไม่สำเร็จ")}
 
-    trained_ids = [row["newsong_id"] for row in rows]
-    cursor.execute('DELETE FROM "Train_Song" WHERE newsong_id = ANY(%s)', (trained_ids,))
-    conn.commit()
+@app.post("/Train_Song/update_model")
+def update_model_with_selected_songs(data: UpdateModelData):
+    """รับงานแล้วตอบ job_id กลับทันที ไม่ให้แอปต้องถือ request ค้างไว้เป็นนาที (คำตอบเคยหายระหว่างทาง
+    ทั้งที่เทรนสำเร็จแล้ว) แอปมาถามผลต่อที่ GET /Train_Song/update_model/{job_id}"""
+    if not data.newsong_ids:
+        return {"status": "error", "error": "ไม่ได้เลือกเพลงเลย"}
+
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cursor.execute(
+        'SELECT newsong_id, newsong_name, newsong_artist, newsong_lyrics FROM "Train_Song" WHERE newsong_id = ANY(%s)',
+        (data.newsong_ids,),
+    )
+    rows = cursor.fetchall()
     conn.close()
 
-    print(f"[UpdateModel] ลบ {len(trained_ids)} เพลงออกจาก Train_Song แล้ว (เทรนเข้าโมเดลสำเร็จ)")
+    if not rows:
+        return {"status": "error", "error": "ไม่พบเพลงที่เลือกในตาราง Train_Song"}
 
-    return {"status": "success", "trained_song_ids": trained_ids, **{k: v for k, v in result.items() if k != "status"}}
+    # เขียนไฟล์ index พร้อมกัน 2 งานไม่ได้ เพลงจากงานหนึ่งจะหาย
+    with update_model_lock:
+        if any(job["status"] == "running" for job in update_model_jobs.values()):
+            return {"status": "error", "error": "กำลังอัปเดตโมเดลอยู่ กรุณารอให้เสร็จก่อน"}
+        job_id = uuid.uuid4().hex
+        update_model_jobs[job_id] = {"status": "running"}
+
+    threading.Thread(target=run_update_model_job, args=(job_id, rows), daemon=True).start()
+    return {"status": "started", "job_id": job_id}
+
+
+@app.get("/Train_Song/update_model/{job_id}")
+def read_update_model_job(job_id: str):
+    job = update_model_jobs.get(job_id)
+    if job is None:
+        return {"status": "error", "error": "ไม่พบงานนี้ (server อาจรีสตาร์ท) กลับเข้าหน้านี้ใหม่เพื่อดูเพลงที่เหลือ"}
+    return job
 
 
 # ---------- อ่านข้อมูลคนเดียว ตาราง users ----------

@@ -45,10 +45,22 @@ const Login = ({ navigation }) => {
             throw error;
         }
 
-        // ไม่มี trigger สร้างแถวใน users ให้อัตโนมัติ คนที่เข้าด้วย Google/Facebook จึงอาจไม่มีแถว
-        // ถ้า throw ตรงนี้จะเข้าแอปไม่ได้เลย ให้เข้าแบบผู้ใช้ทั่วไป (ไม่มีแถว = ไม่เคยถูกแบน)
+        // ไม่มี trigger สร้างแถวใน users ให้อัตโนมัติ คนที่เข้าด้วย Google/Facebook จึงไม่มีแถว
+        // สร้างให้ตอนนี้เพื่อให้แอดมินเห็นในหน้า Search User ถ้าสร้างไม่ได้ก็ยังให้เข้าแบบผู้ใช้ทั่วไป
         if (!userData) {
-            return { role: 'user' };
+            const { data: { user } } = await supabase.auth.getUser();
+            const username =
+                user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'user';
+
+            const { error: insertError } = await supabase
+                .from('users')
+                .insert({ users_id: userId, username, email: user?.email });
+
+            if (insertError) {
+                console.log('สร้างแถวใน users ไม่สำเร็จ:', insertError.message);
+            }
+
+            return { role: 'user', username };
         }
 
         // ถ้าถูกแบน ให้ Logout ทันที
@@ -75,17 +87,14 @@ const Login = ({ navigation }) => {
                 return;
             }
 
-            if (userData.role === 'admin') {
-                navigation?.navigate('Homeadmin', {
-                    userId,
-                    username: userData.username,
-                });
-            } else {
-                navigation?.navigate('Homeuser', {
-                    userId,
-                    username: userData.username,
-                });
-            }
+            // ใช้ reset แทน navigate ไม่ให้ปุ่ม Back ที่หน้า Home ย้อนกลับมาหน้า Login
+            navigation?.reset({
+                index: 0,
+                routes: [{
+                    name: userData.role === 'admin' ? 'Homeadmin' : 'Homeuser',
+                    params: { userId, username: userData.username },
+                }],
+            });
 
         } catch (err) {
             console.log('User verification error:', err);
