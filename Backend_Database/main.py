@@ -4,12 +4,15 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 import psycopg2
 import psycopg2.extras
 import threading
 import uuid
+
+from legal_pages import DATA_DELETION_BODY, PAGE_TEMPLATE, PRIVACY_BODY
 
 
 def _load_env():
@@ -347,6 +350,17 @@ def read_Train_Song():
 # Render (เครื่องที่รัน main.py นี้) ไม่ได้ลง library พวกนั้นไว้เลย เรียก BuildindexUpdate ตรงๆ ในเครื่อง
 # นี้จึงพังทุกครั้ง (ModuleNotFoundError) — endpoint นี้แค่ยิง HTTP ไปให้ Modal เทรนแทน
 MODAL_UPDATE_MODEL_URL = "https://sompon-dev--lyriseek-search-web.us-east.modal.run/update_model"
+
+
+# ---------- หน้าเว็บที่ Facebook บังคับให้มีก่อนเปิด App เป็น Live ----------
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page():
+    return PAGE_TEMPLATE.format(title="LyriSeek Privacy Policy", body=PRIVACY_BODY)
+
+
+@app.get("/data-deletion", response_class=HTMLResponse)
+def data_deletion_page():
+    return PAGE_TEMPLATE.format(title="LyriSeek Data Deletion", body=DATA_DELETION_BODY)
 
 
 # งานอัปเดตโมเดลที่กำลังทำ/เพิ่งเสร็จ เก็บในหน่วยความจำพอ เพราะงานนี้ใช้แค่ไม่กี่นาที ถ้า Render รีสตาร์ท
