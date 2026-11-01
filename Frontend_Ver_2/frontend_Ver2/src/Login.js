@@ -215,7 +215,7 @@ const Login = ({ navigation }) => {
                         queryString = url.split('?')[1];
                     }
 
-                    const params = AuthSession.parseQueryString(queryString);
+                    const params = Object.fromEntries(new URLSearchParams(queryString));
 
                     if (params.code) {
                         const { error: exchangeError } =
@@ -301,7 +301,7 @@ const Login = ({ navigation }) => {
                         queryString = url.split('?')[1];
                     }
 
-                    const params = AuthSession.parseQueryString(queryString);
+                    const params = Object.fromEntries(new URLSearchParams(queryString));
 
                     if (params.code) {
                         const { error: exchangeError } =
