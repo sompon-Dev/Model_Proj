@@ -187,26 +187,13 @@ const AddSong = ({ navigation }) => {
                     <View style={styles.inputBox}>
                         <TextInput
                             style={styles.input}
-                            placeholder="Link YouTube — ไม่บังคับ"
+                            placeholder="Link YouTube"
                             placeholderTextColor="#2D3748"
                             value={youtubeLink}
                             onChangeText={setYoutubeLink}
                             autoCapitalize="none"
                         />
                     </View>
-
-                    {/* Link Spotify — ไม่กรอกก็ได้ ส่งเป็นค่าว่างไปก่อน */}
-                    <View style={styles.inputBox}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Link Spotify — ไม่บังคับ"
-                            placeholderTextColor="#2D3748"
-                            value={spotifyLink}
-                            onChangeText={setSpotifyLink}
-                            autoCapitalize="none"
-                        />
-                    </View>
-
                     {/* Lyrics */}
                     <View style={[styles.inputBox, styles.lyricsBox]}>
                         <TextInput
