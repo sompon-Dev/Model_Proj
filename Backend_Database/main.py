@@ -701,8 +701,7 @@ def read_Song_by_genre(genre_ids: str):
 # ---------- หน้า Homeuser.js เรียก endpoint นี้หลังค้นหาผ่านโมเดล Ver.5 ----------
 # ผลลัพธ์จากโมเดลมีแค่ song_name/artist (ข้อความ) ไม่มี song_id เพราะโมเดลไม่เชื่อมกับ database เลย
 # endpoint นี้รับชื่อเพลงที่เจอมาเป็น list แล้วไปหาใน Song ว่าชื่อนี้ song_id/youtube_link คืออะไร
-# (เทียบด้วยชื่อเพลงเท่านั้น เพราะตาราง Song ไม่มีคอลัมน์ artist — ถ้ามีเพลงชื่อซ้ำกันคนละศิลปิน
-# อาจจับคู่ผิดเพลงได้ เป็นข้อจำกัดที่รู้อยู่แล้ว)
+# ส่ง "Artist" กลับไปด้วย เพราะชื่อเพลงซ้ำกันคนละศิลปินได้ ให้ Homeuser.js เลือกแถวที่ศิลปินตรงกับผลจากโมเดลเอง
 @app.post("/Song/by_names")
 def read_Song_by_names(data: SongNamesData):
     if not data.song_names:
@@ -711,7 +710,7 @@ def read_Song_by_names(data: SongNamesData):
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cursor.execute(
-        'SELECT song_id, song_name, youtube_link, "Image_Link" FROM "Song" WHERE song_name = ANY(%s)',
+        'SELECT song_id, song_name, "Artist", youtube_link, "Image_Link" FROM "Song" WHERE song_name = ANY(%s)',
         (data.song_names,),
     )
     songs = cursor.fetchall()

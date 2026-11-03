@@ -67,6 +67,29 @@ const SONG_BY_NAMES_URL = 'https://lyriseek-api-database.onrender.com/Song/by_na
 const RECOMMENDED_URL = 'https://lyriseek-api-database.onrender.com/trending_song/recommended'; // ⚠️ IP เดียวกับ GENRE_URL (เพลงที่แอดมินกด Add ไว้ใน MostSearch.js)
 const TRENDING_INCREMENT_URL = 'https://lyriseek-api-database.onrender.com/trending_song/increment'; // ⚠️ IP เดียวกับ GENRE_URL
 
+// เก็บแค่ไทย/อังกฤษ/ตัวเลข ให้ "Big Ass" กับ "bigass" เทียบกันได้ (หลักการเดียวกับ _norm ใน Link_Fetcher/Links.py)
+const normalizeName = (text) => (text || '').toLowerCase().replace(/[^0-9a-z฀-๿]+/g, '');
+
+// ชื่อศิลปินบางแถวเขียน 2 ภาษาในวงเล็บ เช่น "บอดี้สแลม (Bodyslam)" จึงแยกเป็นหลายชื่อให้เทียบได้ทุกแบบ
+const artistAliases = (artist) => {
+    const inParens = (artist || '').match(/\(([^)]*)\)/g) || [];
+    return [artist, (artist || '').replace(/\(.*?\)/g, ''), ...inParens.map((p) => p.slice(1, -1))]
+        .map(normalizeName)
+        .filter((name) => name.length >= 2);
+};
+
+const isSameArtist = (a, b) =>
+    artistAliases(a).some((x) => artistAliases(b).some((y) => x.includes(y) || y.includes(x)));
+
+// เลือกแถวใน DB ที่ศิลปินตรงกับผลจากโมเดล ถ้าไม่มีแถวไหนตรงเลยไม่เดา (ไม่งั้นจะเปิดเพลงของศิลปินอื่น)
+// ยกเว้นมีแถวเดียวที่ไม่ได้กรอกศิลปินไว้ ให้ใช้แถวนั้นตามเดิม
+const findSongRow = (rows, artist) => {
+    if (!rows || rows.length === 0) return undefined;
+    const matched = rows.find((row) => isSameArtist(row.Artist, artist));
+    if (matched) return matched;
+    return rows.length === 1 && !rows[0].Artist ? rows[0] : undefined;
+};
+
 const Homeuser = ({ navigation }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [showFilters, setShowFilters] = useState(false);
@@ -309,8 +332,8 @@ const Homeuser = ({ navigation }) => {
 
             // โมเดล Ver.5 รู้แค่ song_name/artist ไม่รู้ song_id/youtube_link เพราะไม่เชื่อมกับ
             // database เลย — เอาชื่อเพลงที่เจอไปถาม /Song/by_names เพื่อหา song_id/youtube_link จริง
-            // มาเติมให้ (เทียบด้วยชื่อเพลงเท่านั้น ถ้าชื่อซ้ำกันคนละศิลปินอาจจับคู่ผิดเพลงได้)
-            let songByName = {};
+            // ชื่อเพลงซ้ำกันคนละศิลปินได้ จึงเก็บทุกแถวของชื่อนั้นไว้ แล้วเลือกแถวที่ศิลปินตรงด้านล่าง
+            const songsByName = {};
             try {
                 const namesRes = await fetch(SONG_BY_NAMES_URL, {
                     method: 'POST',
@@ -320,22 +343,23 @@ const Homeuser = ({ navigation }) => {
                 });
                 const namesJson = await namesRes.json();
                 (namesJson.data || []).forEach((song) => {
-                    songByName[song.song_name] = song;
+                    (songsByName[song.song_name] = songsByName[song.song_name] || []).push(song);
                 });
             } catch (err) {
                 console.log('หา song_id/youtube_link จากชื่อเพลงไม่สำเร็จ:', err);
             }
 
-            // ถ้าผลค้นหาจากโมเดล 2 รายการ ชื่อเพลงตรงกันเป๊ะ (เช่นเพลงชื่อซ้ำกันคนละศิลปิน) จะจับคู่
-            // song_id เดียวกันทั้งคู่ (เพราะเทียบแค่ชื่อ แยกศิลปินไม่ออก) ทำให้การ์ดซ้ำกันและ React เตือน
-            // error duplicate key — ป้องกันด้วยการเก็บผลลัพธ์แค่ชื่อละ 1 การ์ด (ตัวแรกที่เจอ)
-            const seenTitles = new Set();
+            // ถ้าโมเดลเจอเพลงเดียวกันซ้ำ (เช่นชื่อศิลปินสะกด 2 แบบ) จะได้แถวเดียวกันใน DB ทำให้การ์ดซ้ำ
+            // และ React เตือน duplicate key — เก็บการ์ดละ 1 ใบต่อแถวใน DB (หรือต่อชื่อเพลง+ศิลปินถ้าไม่เจอแถว)
+            const seenSongs = new Set();
             const results = [];
             matches.forEach((song) => {
-                if (seenTitles.has(song.song_name)) return;
-                seenTitles.add(song.song_name);
-
-                const matchedSong = songByName[song.song_name];
+                const matchedSong = findSongRow(songsByName[song.song_name], song.artist);
+                const songKey = matchedSong
+                    ? `id:${matchedSong.song_id}`
+                    : `name:${song.song_name}|${normalizeName(song.artist)}`;
+                if (seenSongs.has(songKey)) return;
+                seenSongs.add(songKey);
 
                 // id ต้องเป็น song_id จริงจาก DB เท่านั้น ถ้าไม่เจอให้เป็น undefined (ไม่ใช้ index
                 // แทน) เพราะ Result.js จะเอา id นี้ไปนับ trending — ถ้าใช้ index ปลอมๆ อาจไปนับผิดเพลง

@@ -194,6 +194,8 @@ const Login = ({ navigation }) => {
                 options: {
                     redirectTo,
                     skipBrowserRedirect: true,
+                    // ให้ Google ถามทุกครั้งว่าจะใช้บัญชีไหน ไม่เข้าบัญชีที่ค้างในเบราว์เซอร์เอง
+                    queryParams: { prompt: 'select_account' },
                 },
             });
 
