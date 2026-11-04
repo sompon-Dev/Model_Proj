@@ -700,10 +700,10 @@ def delete_user(user_id: int):
 
 | Method | URL | ทำอะไร | SQL |
 |---|---|---|---|
-| POST | `/Song` | เพิ่มเพลง (ชื่อ ลิงก์ Spotify ลิงก์ YouTube) | `INSERT INTO "Song" (song_name, spotify_Link, youtube_link) ... RETURNING song_id` |
-| GET | `/Song` | อ่านทั้งหมด | `SELECT song_id, song_name, spotify_Link, youtube_link FROM "Song" ORDER BY song_id` |
-| GET | `/Song/{song_id}` | อ่านทีละเพลง | ดู "ข้อสังเกต" ข้อ 3 |
-| PUT | `/song/{song_id}` | แก้ไขเพลง | ดู "ข้อสังเกต" ข้อ 4 |
+| POST | `/Song` | เพิ่มเพลง (ชื่อ ศิลปิน ลิงก์ Spotify ลิงก์ YouTube) ภาพปกสร้างจากลิงก์ YouTube ให้เอง | `INSERT INTO "Song" (song_name, "Artist", spotify_Link, youtube_link, "Image_Link") ... RETURNING song_id` |
+| GET | `/Song` | อ่านทั้งหมด ครบ 6 คอลัมน์ | `SELECT song_id, song_name, "Artist", spotify_Link, youtube_link, "Image_Link" FROM "Song" ORDER BY song_id` |
+| GET | `/Song/{song_id}` | อ่านทีละเพลง ครบ 6 คอลัมน์ ไม่พบจะตอบ `"status": "error"` | `SELECT ... FROM "Song" WHERE song_id = %s` |
+| PUT | `/Song/{song_id}` | แก้ไขเพลงทุกช่อง และแก้ใน `history` ให้ตรงด้วย | `UPDATE "Song" SET song_name, "Artist", spotify_Link, youtube_link, "Image_Link" WHERE song_id = %s` |
 | DELETE | `/Song/{song_id}` | ลบเพลงเดียว | `DELETE FROM "Song" WHERE song_id = %s` |
 
 ### ตาราง `Genre` แนวเพลง (บรรทัด 356-423)
@@ -792,8 +792,8 @@ def delete_user(user_id: int):
 |---|---|---|---|
 | 1 | 232 | `GET /Train_Song/{newsong_id}` ไปค้นในตาราง **`"User"`** ด้วย `WHERE user_id` (น่าจะคัดลอกมาจากส่วน users แล้วลืมแก้) | ได้ข้อมูลผิดตาราง หรือ error เพราะตาราง `User` ไม่มีคอลัมน์ `newsong_id` |
 | 2 | 247-248 | `PUT /Train_Song/{id}` สั่ง `UPDATE "Train_Song" SET username, email WHERE user_id` และส่งค่า 3 ตัวให้ `%s` 3 ช่อง แต่ชื่อคอลัมน์ผิด (ต้องเป็น `newsong_name`, `newsong_artist`, `newsong_id`) และไม่ได้อัปเดตเนื้อร้อง | error เพราะไม่มีคอลัมน์ `username` ในตาราง `Train_Song` |
-| 3 | 317 | `GET /Song/{song_id}` ไปค้นในตาราง **`"User"`** เช่นกัน | ได้ข้อมูลผิดตาราง หรือ error |
-| 4 | 327, 332 | `PUT /song/{song_id}` ใช้ตัวพิมพ์เล็ก (`/song`) ขณะที่อันอื่นใช้ `/Song` และเงื่อนไขเป็น `WHERE user_id` แทน `song_id` | URL ไม่ตรงกับ endpoint อื่น และ error เพราะไม่มีคอลัมน์ `user_id` ในตาราง `Song` |
+| 3 | - | ✅ แก้แล้ว 2026-11-04: `GET /Song/{song_id}` เคยไปค้นในตาราง **`"User"`** ตอนนี้ค้นใน `"Song"` แล้ว | - |
+| 4 | - | ✅ แก้แล้ว 2026-11-04: `PUT /song/{song_id}` เปลี่ยน path เป็น `/Song/{song_id}` และใช้ `WHERE song_id` แล้ว | - |
 | 5 | 209, 294 | `POST /Train_Song` และ `POST /Song` ถูกประกาศ **ซ้ำสองครั้ง** (`create_...` กับ `register_...`) | FastAPI ใช้อันแรกเสมอ อันที่สอง (`register_newsong`, `register_song`) ไม่เคยถูกเรียก ไม่พังแต่เป็นโค้ดที่ไม่ได้ใช้ |
 | 6 | 637-717 | URL `/…/all` ทั้งเจ็ดอันมาหลัง `/…/{id}` ที่รับเลขจำนวนเต็ม FastAPI จะจับคู่ URL ตามลำดับที่ประกาศ `DELETE /users/all` จึงน่าจะถูกจับคู่กับ `/users/{user_id}` ก่อน แล้วขึ้น error 422 เพราะ `"all"` ไม่ใช่เลข | คาดว่า endpoint ลบทั้งหมดใช้ไม่ได้ ถ้าจะแก้ให้ย้ายกลุ่ม `/all` ไปประกาศ **ก่อน** `/{id}` (ควรทดสอบผ่าน `/docs` เพื่อยืนยัน) |
 

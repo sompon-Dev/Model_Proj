@@ -95,6 +95,7 @@ class SongData(BaseModel):
     song_name: str
     spotify_Link:str
     youtube_link:str
+    artist: str = ""  # ไม่บังคับ เพื่อให้คำขอแบบเดิมที่ส่งมาแค่ 3 ช่องยังใช้ได้
 
 # ใช้คู่กับหน้า Homeuser.js ตอนค้นหาผ่านโมเดล Ver.5 (ผลลัพธ์มีแค่ song_name ไม่มี song_id เพราะ
 # โมเดลไม่เชื่อมกับ database) ส่งชื่อเพลงที่เจอมาเป็น list แล้วให้ไปหา song_id/youtube_link จริงให้
@@ -116,6 +117,7 @@ class Update_SongData(BaseModel):
     song_name: str
     spotify_Link:str
     youtube_link:str
+    artist: str = ""
 
 # ใช้คู่กับหน้า EditAdmin.js: genre_ids/mood_ids คือรายการ "ทั้งหมด" ที่เพลงนี้ควรมีหลังบันทึก
 class EditSongData(BaseModel):
@@ -513,13 +515,17 @@ def delete_user(newsong_id: int):
 
 @app.post("/Song")
 def create_Song(data:SongData):
-    
+    from AddSong import get_thumbnail_link  # deferred เหตุผลเดียวกับ /AddSong ด้านล่าง (AddSong.py import จากไฟล์นี้)
+
+    # ภาพปกสร้างจากลิงก์ YouTube เหมือน /AddSong ถ้าลิงก์ไม่ใช่เพลงเดี่ยวของ YouTube จะได้ "" แทน
+    image_link = get_thumbnail_link(data.youtube_link)
 
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cursor.execute(
-        'INSERT INTO "Song" (song_name, spotify_Link, youtube_link) VALUES (%s, %s, %s) RETURNING song_id',
-        (data.song_name, data.spotify_Link, data.youtube_link),
+        'INSERT INTO "Song" (song_name, "Artist", spotify_Link, youtube_link, "Image_Link") '
+        'VALUES (%s, %s, %s, %s, %s) RETURNING song_id',
+        (data.song_name, data.artist.strip() or None, data.spotify_Link, data.youtube_link, image_link),
     )
     song_id = cursor.fetchone()["song_id"]
     conn.commit()
@@ -560,7 +566,9 @@ def register_song(data: SongData):
 def read_Song():
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute('SELECT song_id, song_name, spotify_Link, youtube_link FROM "Song" ORDER BY song_id')
+    cursor.execute(
+        'SELECT song_id, song_name, "Artist", spotify_Link, youtube_link, "Image_Link" FROM "Song" ORDER BY song_id'
+    )
     Song = cursor.fetchall()
     conn.close()
 
@@ -724,34 +732,48 @@ def read_Song_by_names(data: SongNamesData):
 def read_Song(song_id: int):
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    # ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 3): query นี้ไปค้นตาราง "User" ผิด ที่ถูกต้อง
-    # ควรเป็น FROM "Song" WHERE song_id — ไม่แก้ตอนนี้เพื่อคงพฤติกรรมเดิมไว้ก่อน
     cursor.execute(
-        'SELECT song_id, song_name, spotify_Link, youtube_link FROM "User" WHERE song_id = %s',
+        'SELECT song_id, song_name, "Artist", spotify_Link, youtube_link, "Image_Link" FROM "Song" WHERE song_id = %s',
         (song_id,),
     )
     Song = cursor.fetchone()
     conn.close()
 
+    if not Song:
+        return {"status": "error", "error": f"ไม่พบเพลง song_id={song_id} ในตาราง Song"}
     return {"status": "success", "data": Song}
 
 
-# ---------- แก้ไขข้อมูล ตาราง users ----------
-# ⚠ บั๊กที่รู้อยู่แล้ว (ดู Document.md ส่วนที่ 3 ข้อ 4): path เขียนเป็นตัวพิมพ์เล็ก "/song/{song_id}"
-# ขณะที่ endpoint อื่นของตาราง Song ใช้ "/Song/{song_id}" (ตัวพิมพ์ใหญ่) ทำให้ URL ไม่ตรงกัน และ
-# WHERE user_id ก็ผิด (ตาราง Song ไม่มีคอลัมน์ user_id ควรเป็น WHERE song_id) ไม่แก้ตอนนี้
-@app.put("/song/{song_id}")
+# ---------- แก้ไขข้อมูล ตาราง Song ----------
+# แก้ได้ทุกช่องรวมชื่อเพลง ต่างจาก /Song/{song_id}/details ที่หน้า EditAdmin.js ใช้ (ไม่ให้แก้ชื่อเพลง)
+# ระวัง: ถ้าเปลี่ยนชื่อเพลง ผลค้นหาจากโมเดลที่ยังเป็นชื่อเดิมจะหาแถวนี้ไม่เจอ
+@app.put("/Song/{song_id}")
 def update_Song(song_id: int, data: Update_SongData):
+    from AddSong import get_thumbnail_link  # deferred เหตุผลเดียวกับ /AddSong
+
+    artist = data.artist.strip() or None
+    image_link = get_thumbnail_link(data.youtube_link)
+
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute(
-        'UPDATE "Song" SET song_name = %s, spotify_Link = %s, youtube_link = %s WHERE user_id = %s',
-        (data.song_name, data.spotify_Link, data.youtube_link, song_id),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute(
+            'UPDATE "Song" SET song_name = %s, "Artist" = %s, spotify_Link = %s, youtube_link = %s, "Image_Link" = %s '
+            'WHERE song_id = %s',
+            (data.song_name, artist, data.spotify_Link, data.youtube_link, image_link, song_id),
+        )
+        if cursor.rowcount == 0:
+            return {"status": "error", "error": f"ไม่พบเพลง song_id={song_id} ในตาราง Song"}
+        # history คัดลอกค่าเหล่านี้มาเก็บเอง ต้องตามให้ตรง เหมือนใน /Song/{song_id}/details
+        cursor.execute(
+            'UPDATE "history" SET song_name = %s, "Artist" = %s, youtube_link = %s, "Image_Link" = %s WHERE song_id = %s',
+            (data.song_name, artist, data.youtube_link, image_link, song_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
-    return {"status": "success"}
+    return {"status": "success", "Image_Link": image_link}
 
 
 # ---------- ลบข้อมูล ตาราง users ----------
