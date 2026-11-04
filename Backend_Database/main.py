@@ -11,6 +11,7 @@ import psycopg2
 import psycopg2.extras
 import threading
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from legal_pages import DATA_DELETION_BODY, PAGE_TEMPLATE, PRIVACY_BODY
 
@@ -56,6 +57,79 @@ DB_CONFIG = {
 
 def get_connection():
     return psycopg2.connect(**DB_CONFIG)
+
+
+# ใช้ตัดรอบรีเซ็ต trend ตามเวลาไทย (server บน Render เป็นเวลา UTC ถ้าไม่ระบุจะรีเซ็ตช้าไป 7 ชั่วโมง)
+# ไทยไม่มีเวลาออมแสง จึงใช้ +7 ตายตัวได้ ไม่ต้องลง tzdata เพิ่ม
+THAI_TZ = timezone(timedelta(hours=7))
+
+
+# ตาราง trend_setting มีแค่ 1 แถว (id = 1) เก็บวันที่รีเซ็ตรอบล่าสุดของ week/month/year และสถานะช่อง
+# "Auto Recomend" ในหน้า MostSearch.js — IF NOT EXISTS / ON CONFLICT DO NOTHING: มีแล้วก็ไม่ทำอะไร
+# แถวแรกตั้งวันรีเซ็ตเป็นรอบปัจจุบันไว้เลย ยอดที่มีอยู่ตอนนี้จึงไม่ถูกล้างทันที จะเริ่มล้างจริงตอนขึ้นรอบใหม่
+def ensure_trend_setting(cursor):
+    cursor.execute(
+        'CREATE TABLE IF NOT EXISTS "trend_setting" ('
+        '  id               INTEGER PRIMARY KEY CHECK (id = 1),'
+        '  last_week_reset  DATE NOT NULL,'
+        '  last_month_reset DATE NOT NULL,'
+        '  last_year_reset  DATE NOT NULL,'
+        '  auto_recommend   BOOLEAN NOT NULL DEFAULT FALSE'
+        ')'
+    )
+    week_start, month_start, year_start = current_trend_periods()
+    cursor.execute(
+        'INSERT INTO "trend_setting" (id, last_week_reset, last_month_reset, last_year_reset) '
+        'VALUES (1, %s, %s, %s) ON CONFLICT (id) DO NOTHING',
+        (week_start, month_start, year_start),
+    )
+
+
+# สร้างไว้ตั้งแต่ server เริ่มทำงาน ถ้าตอนนั้นต่อ DB ไม่ได้ก็ไม่เป็นไร reset_trend_if_due จะสร้างให้เองตอนใช้ครั้งแรก
+@app.on_event("startup")
+def ensure_trend_setting_on_startup():
+    try:
+        conn = get_connection()
+        ensure_trend_setting(conn.cursor())
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        # ต่อ DB ไม่ได้ตอนเริ่ม ไม่ให้ทั้ง server ล่ม endpoint อื่นยังใช้ได้
+        print("สร้างตาราง trend_setting ไม่สำเร็จ:", e)
+
+
+def current_trend_periods():
+    """คืนวันเริ่มรอบปัจจุบันตามเวลาไทย: (วันจันทร์ของสัปดาห์นี้, วันที่ 1 ของเดือนนี้, 1 มกราคมของปีนี้)
+    weekday() ของวันจันทร์คือ 0 ลบออกเท่านั้นวันก็ได้วันจันทร์ของสัปดาห์เดียวกัน"""
+    today = datetime.now(THAI_TZ).date()
+    return today - timedelta(days=today.weekday()), today.replace(day=1), today.replace(month=1, day=1)
+
+
+def reset_trend_if_due(cursor):
+    """รีเซ็ต trend_one_week/month/year เป็น 0 ทุกเพลง ถ้าขึ้นรอบใหม่แล้วแต่ยังไม่ได้รีเซ็ต
+    เรียกก่อนทุกครั้งที่ใช้ข้อมูล trending (ไม่ใช้ scheduled job เพราะ Render free tier หลับเมื่อไม่มีคนใช้
+    ถ้าหลับอยู่ตอนเที่ยงคืนวันจันทร์ job จะไม่รัน) — ตัวอย่าง: วันนี้พุธที่ 12 จันทร์ของสัปดาห์นี้คือวันที่ 10
+    ถ้า last_week_reset ยังเป็นวันที่ 3 แปลว่ายังไม่ได้รีเซ็ตรอบนี้ ก็ล้าง week แล้วจดว่ารีเซ็ตรอบวันที่ 10 แล้ว
+    FOR UPDATE: ล็อกแถวไว้ระหว่างเช็ก กัน 2 request ที่เข้ามาพร้อมกันรีเซ็ตซ้อนกัน"""
+    ensure_trend_setting(cursor)  # กันกรณีตอน server เริ่มต่อ DB ไม่ได้ หรือแถว setting ถูกลบไป
+    week_start, month_start, year_start = current_trend_periods()
+    cursor.execute(
+        'SELECT last_week_reset, last_month_reset, last_year_reset FROM "trend_setting" WHERE id = 1 FOR UPDATE'
+    )
+    row = cursor.fetchone()
+    last_week, last_month, last_year = row["last_week_reset"], row["last_month_reset"], row["last_year_reset"]
+
+    if last_week < week_start:
+        cursor.execute('UPDATE "trending_song" SET trend_one_week = 0')
+    if last_month < month_start:
+        cursor.execute('UPDATE "trending_song" SET trend_one_month = 0')
+    if last_year < year_start:
+        cursor.execute('UPDATE "trending_song" SET trend_one_year = 0')
+
+    cursor.execute(
+        'UPDATE "trend_setting" SET last_week_reset = %s, last_month_reset = %s, last_year_reset = %s WHERE id = 1',
+        (max(last_week, week_start), max(last_month, month_start), max(last_year, year_start)),
+    )
 
 
 # CryptContext จาก passlib จัดการ hash รหัสผ่านให้ (เก็บ hash ไม่เก็บรหัสผ่านตัวจริงลง DB)
@@ -203,6 +277,10 @@ class UpdateTrendingSongData(BaseModel):
 # แล้วกด Add เพื่อตั้งเป็นเพลงแนะนำ (trend_add = true) ไปโชว์ใน "For You" ของหน้า Homeuser.js
 class AddRecommendData(BaseModel):
     trend_song_ids: list[int]
+
+# ใช้คู่กับ MostSearch.js: ติ๊ก/ถอนติ๊กช่อง "Auto Recomend"
+class AutoRecommendData(BaseModel):
+    enabled: bool
 
 # ใช้คู่กับ Result.js / Homeuser.js (For You) / History.js: ผู้ใช้กดเปิดเพลงใน YouTube Music
 # user_id คือ users_id (uuid) ของผู้ใช้ใน Supabase — คนละ database กับที่นี่ จึงผูก foreign key ไม่ได้
@@ -1312,6 +1390,8 @@ def read_trending_songs():
     ที่เหลือเรียงตาม trend_alltime มากไปน้อย (อันดับ 3 เป็นต้นไป)"""
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    reset_trend_if_due(cursor)
+    conn.commit()
     cursor.execute(
         'SELECT t.trend_song_id, t.song_id, t.trend_song_name, t.trend_alltime, t.trend_one_week, '
         't.trend_one_month, t.trend_one_year, t.trend_add, s."Image_Link" '
@@ -1331,10 +1411,11 @@ def read_trending_songs():
 def increment_trending_song(song_id: int):
     """ถ้าเพลงนี้ (song_id) ยังไม่เคยอยู่ใน trending_song ให้สร้างแถวใหม่ (ทุกค่าเริ่มที่ 1)
     ถ้ามีอยู่แล้วให้ +1 ทั้ง trend_alltime, trend_one_week, trend_one_month, trend_one_year
-    (trend_alltime ไม่มีการรีเซ็ต ส่วน week/month/year จะถูกรีเซ็ตเป็น 0 เองตามรอบโดย scheduled job
-    ด้านล่างของไฟล์นี้ — ดู reset_weekly_trend/reset_monthly_trend/reset_yearly_trend)"""
+    (trend_alltime ไม่มีการรีเซ็ต ส่วน week/month/year จะถูกรีเซ็ตเป็น 0 ทุกวันจันทร์/วันที่ 1/1 มกราคม
+    ตามเวลาไทย — เช็กรอบก่อน +1 เสมอ ดู reset_trend_if_due ด้านบนของไฟล์นี้)"""
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    reset_trend_if_due(cursor)
 
     cursor.execute('SELECT trend_song_id FROM "trending_song" WHERE song_id = %s', (song_id,))
     existing = cursor.fetchone()
@@ -1394,18 +1475,86 @@ def add_recommend(data: AddRecommendData):
 # ---------- หน้า Homeuser.js เรียก endpoint นี้โชว์ใน "For You": เอาเพลงที่ trend_add = true ----------
 @app.get("/trending_song/recommended")
 def read_recommended_trending_songs():
-    """JOIN กับ Song เอาชื่อเพลง/ศิลปิน/รูปมาด้วย เฉพาะแถวที่แอดมินกด Add ไว้ (trend_add = true)"""
+    """JOIN กับ Song เอาชื่อเพลง/ศิลปิน/รูปมาด้วย
+    ถ้าแอดมินติ๊ก "Auto Recomend" ไว้: ให้ระบบเลือกเองจากสถิติ (ดู pick_auto_recommend)
+    ถ้าไม่ได้ติ๊ก: เฉพาะแถวที่แอดมินกด Add ไว้เอง (trend_add = true) เหมือนเดิม"""
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute(
-        'SELECT t.trend_song_id, t.song_id, s.song_name, s."Artist", s."Image_Link", s.youtube_link '
-        'FROM "trending_song" t JOIN "Song" s ON s.song_id = t.song_id '
-        'WHERE t.trend_add = TRUE ORDER BY t.trend_song_id'
-    )
-    songs = cursor.fetchall()
+    reset_trend_if_due(cursor)
+    conn.commit()
+
+    cursor.execute('SELECT auto_recommend FROM "trend_setting" WHERE id = 1')
+    if cursor.fetchone()["auto_recommend"]:
+        songs = pick_auto_recommend(cursor)
+    else:
+        cursor.execute(
+            'SELECT t.trend_song_id, t.song_id, s.song_name, s."Artist", s."Image_Link", s.youtube_link '
+            'FROM "trending_song" t JOIN "Song" s ON s.song_id = t.song_id '
+            'WHERE t.trend_add = TRUE ORDER BY t.trend_song_id'
+        )
+        songs = cursor.fetchall()
     conn.close()
 
     return {"status": "success", "data": songs}
+
+
+def top_trending_song(cursor, column, exclude_ids):
+    """เพลงที่ค่าในคอลัมน์ column สูงสุด (ต้อง > 0) โดยไม่เอาเพลงที่อยู่ใน exclude_ids ไม่มีเลยคืน None
+    ค่าเท่ากันให้เพลงที่ trend_alltime มากกว่าชนะ ถ้ายังเท่าอีกเอา trend_song_id น้อยกว่า (ผลจะได้ไม่สุ่มเปลี่ยนไปมา)
+    column มาจากโค้ดใน pick_auto_recommend เท่านั้น ไม่ได้มาจากผู้ใช้ จึงต่อ string เข้า SQL ได้อย่างปลอดภัย"""
+    cursor.execute(
+        'SELECT t.trend_song_id, t.song_id, s.song_name, s."Artist", s."Image_Link", s.youtube_link '
+        'FROM "trending_song" t JOIN "Song" s ON s.song_id = t.song_id '
+        f'WHERE t.{column} > 0 AND NOT (t.trend_song_id = ANY(%s)) '
+        f'ORDER BY t.{column} DESC, t.trend_alltime DESC, t.trend_song_id LIMIT 1',
+        (exclude_ids,),
+    )
+    return cursor.fetchone()
+
+
+def pick_auto_recommend(cursor):
+    """เลือกเพลงแนะนำ 2 เพลงจากสถิติ (ใช้ตอนแอดมินติ๊ก "Auto Recomend"):
+    เพลงที่ 1 = trend_one_month สูงสุด
+    เพลงที่ 2 = trend_one_week สูงสุด ที่ไม่ใช่เพลงที่ 1 (ถ้าเพลงเดียวกันได้ที่ 1 ทั้งคู่ จะได้อันดับ 2 ของ week แทน)
+    ช่องไหนไม่มีเพลงที่ยอด > 0 (เช่น เพิ่งรีเซ็ตวันจันทร์) ให้ใช้เพลงที่ trend_alltime สูงสุดที่ยังไม่ถูกเลือกแทน
+    ถ้าว่างทั้ง month และ week จึงได้ alltime อันดับ 1 และ 2"""
+    picks = []
+    for column in ("trend_one_month", "trend_one_week"):
+        chosen_ids = [p["trend_song_id"] for p in picks]
+        song = top_trending_song(cursor, column, chosen_ids) or top_trending_song(cursor, "trend_alltime", chosen_ids)
+        if song:
+            picks.append(song)
+    return picks
+
+
+# ---------- หน้า MostSearch.js: อ่าน/ตั้งค่าช่อง "Auto Recomend" ----------
+# ต้องประกาศไว้ "ก่อน" /trending_song/{trend_song_id} ด้านล่าง เหตุผลเดียวกับ /trending_song/increment
+@app.get("/trending_song/auto_recommend")
+def read_auto_recommend():
+    """enabled: ติ๊กอยู่ไหม, trend_song_ids: เพลงที่ระบบเลือกให้ตอนนี้ (ให้หน้า MostSearch ไฮไลต์ไว้)"""
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    reset_trend_if_due(cursor)
+    conn.commit()
+    cursor.execute('SELECT auto_recommend FROM "trend_setting" WHERE id = 1')
+    enabled = cursor.fetchone()["auto_recommend"]
+    picks = pick_auto_recommend(cursor) if enabled else []
+    conn.close()
+
+    return {"status": "success", "enabled": enabled, "trend_song_ids": [p["trend_song_id"] for p in picks]}
+
+
+@app.put("/trending_song/auto_recommend")
+def update_auto_recommend(data: AutoRecommendData):
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    reset_trend_if_due(cursor)  # ให้แน่ใจว่ามีแถว setting ก่อน UPDATE (ไม่งั้น UPDATE 0 แถวแล้วเงียบไป)
+    cursor.execute('UPDATE "trend_setting" SET auto_recommend = %s WHERE id = 1', (data.enabled,))
+    conn.commit()
+    conn.close()
+
+    # ตอบสถานะล่าสุดพร้อมเพลงที่ระบบเลือกกลับไปเลย หน้า MostSearch จะได้ไฮไลต์ได้ทันทีไม่ต้องยิงซ้ำ
+    return read_auto_recommend()
 
 
 # ---------- อ่านข้อมูลอันเดียว ตาราง trending_song ----------

@@ -14,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 
 const TRENDING_SONG_URL = 'https://lyriseek-api-database.onrender.com/trending_song'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
 const ADD_RECOMMEND_URL = 'https://lyriseek-api-database.onrender.com/trending_song/add_recommend'; // ⚠️ IP เดียวกับ TRENDING_SONG_URL
+const AUTO_RECOMMEND_URL = 'https://lyriseek-api-database.onrender.com/trending_song/auto_recommend'; // ⚠️ IP เดียวกับ TRENDING_SONG_URL
 
 const MAX_SELECT = 2; // ติ๊กเลือกเพลงแนะนำได้สูงสุดกี่เพลง
 
@@ -22,15 +23,51 @@ const MostSearch = ({ navigation }) => {
     const [selectedIds, setSelectedIds] = useState([]);
     const [loaded, setLoaded] = useState(false); // true หลังโหลดเสร็จครั้งแรก (กันขึ้น "ไม่พบ" ก่อนโหลดเสร็จ)
     const [submitting, setSubmitting] = useState(false);
+    const [autoOn, setAutoOn] = useState(false); // ช่อง "Auto Recomend" ติ๊กอยู่ไหม (ค่าจริงเก็บใน DB ตาราง trend_setting)
+    const [autoIds, setAutoIds] = useState([]); // trend_song_id ที่ระบบเลือกให้อัตโนมัติ (ไว้ไฮไลต์ในลิสต์)
+    const [savingAuto, setSavingAuto] = useState(false);
 
-    // โหลดรายชื่อเพลงทั้งหมดในตาราง trending_song ตอนเปิดหน้านี้
+    // โหลดรายชื่อเพลงทั้งหมดในตาราง trending_song + สถานะ Auto Recomend ตอนเปิดหน้านี้
     useEffect(() => {
         fetch(TRENDING_SONG_URL)
             .then((res) => res.json())
             .then((json) => setMostSearchedSongs(json.data || []))
             .catch((err) => console.log('โหลด trending_song ไม่สำเร็จ:', err))
             .finally(() => setLoaded(true));
+        fetch(AUTO_RECOMMEND_URL)
+            .then((res) => res.json())
+            .then((json) => {
+                setAutoOn(!!json.enabled);
+                setAutoIds(json.trend_song_ids || []);
+            })
+            .catch((err) => console.log('โหลดสถานะ Auto Recomend ไม่สำเร็จ:', err));
     }, []);
+
+    // กดช่อง "Auto Recomend": บันทึกลง DB ทันที ติ๊กอยู่ = For You เลือกเพลงจากสถิติเอง
+    // (เพลงที่ 1 จาก trend_one_month สูงสุด เพลงที่ 2 จาก trend_one_week สูงสุด ดู pick_auto_recommend ใน main.py)
+    // ระหว่างติ๊กอยู่จะเลือกเพลงเองไม่ได้ ต้องเอาติ๊กออกก่อนถึงกลับมาเลือกแบบ manual ได้
+    const toggleAuto = async () => {
+        setSavingAuto(true);
+        try {
+            const res = await fetch(AUTO_RECOMMEND_URL, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: !autoOn }),
+            });
+            const json = await res.json();
+            if (json.status === 'success') {
+                setAutoOn(json.enabled);
+                setAutoIds(json.trend_song_ids || []);
+            } else {
+                Alert.alert('ไม่สำเร็จ', json.error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
+            }
+        } catch (err) {
+            console.log('ตั้งค่า Auto Recomend ไม่สำเร็จ:', err);
+            Alert.alert('ไม่สำเร็จ', 'เชื่อมต่อ server ไม่ได้ ลองใหม่อีกครั้ง');
+        } finally {
+            setSavingAuto(false);
+        }
+    };
 
     // ติ๊ก/ถอนติ๊ก (เหมือน checkbox) — ติ๊กพร้อมกันได้สูงสุด MAX_SELECT เพลง
     const toggleSelect = (id) => {
@@ -106,19 +143,38 @@ const MostSearch = ({ navigation }) => {
 
                 {/* White Container */}
                 <View style={styles.cardContainer}>
+                    {/* ช่องติ๊ก Auto Recomend มุมขวาบน */}
+                    <TouchableOpacity
+                        style={styles.autoRow}
+                        activeOpacity={0.7}
+                        onPress={toggleAuto}
+                        disabled={savingAuto}
+                    >
+                        <Feather
+                            name={autoOn ? 'check-square' : 'square'}
+                            size={20}
+                            color={autoOn ? '#556AB0' : '#9CA3AF'}
+                        />
+                        <Text style={styles.autoText}>{savingAuto ? '...' : 'Auto Recomend'}</Text>
+                    </TouchableOpacity>
+
                     {/* Song List: ดึงมาจากตาราง trending_song จริง ถ้าไม่มีเพลงเลยให้ขึ้น "ไม่พบ" */}
                     {loaded && mostSearchedSongs.length === 0 ? (
                         <Text style={styles.notFoundText}>ไม่พบเพลงใน trending</Text>
                     ) : (
                         <View style={styles.listContainer}>
                             {mostSearchedSongs.map((item) => {
-                                const isSelected = selectedIds.includes(item.trend_song_id);
+                                // ติ๊ก Auto อยู่: โชว์เพลงที่ระบบเลือกให้ และกดเลือกเองไม่ได้
+                                const isSelected = autoOn
+                                    ? autoIds.includes(item.trend_song_id)
+                                    : selectedIds.includes(item.trend_song_id);
                                 return (
                                     <TouchableOpacity
                                         key={item.trend_song_id}
-                                        style={styles.songItem}
+                                        style={[styles.songItem, autoOn && !isSelected && styles.songItemDisabled]}
                                         activeOpacity={0.8}
                                         onPress={() => toggleSelect(item.trend_song_id)}
+                                        disabled={autoOn}
                                     >
                                         {item.Image_Link ? (
                                             <Image source={{ uri: item.Image_Link }} style={styles.imagePlaceholder} />
@@ -143,10 +199,10 @@ const MostSearch = ({ navigation }) => {
                     <View style={styles.bottomRow}>
                         <Text style={styles.recommendLabel}>add to recommend</Text>
                         <TouchableOpacity
-                            style={styles.addButton}
+                            style={[styles.addButton, autoOn && styles.addButtonDisabled]}
                             activeOpacity={0.85}
                             onPress={handleAddPress}
-                            disabled={submitting}
+                            disabled={submitting || autoOn}
                         >
                             <Text style={styles.addButtonText}>
                                 {submitting ? '...' : 'Add'}
@@ -210,6 +266,25 @@ const styles = StyleSheet.create({
         elevation: 2,
         minHeight: 460,
         justifyContent: 'space-between',
+    },
+    autoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-end',
+        marginTop: -12,
+        marginBottom: 16,
+    },
+    autoText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#556AB0',
+        marginLeft: 6,
+    },
+    songItemDisabled: {
+        opacity: 0.4,
+    },
+    addButtonDisabled: {
+        opacity: 0.4,
     },
     listContainer: {
         width: '100%',
