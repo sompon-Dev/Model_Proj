@@ -88,7 +88,8 @@ const AddSong = ({ navigation }) => {
     };
 
     // กดปุ่ม Enter: ส่งข้อมูลเพลงทั้งหมดไปที่ /AddSong ให้เพิ่มลง database ให้ครบทุกตาราง
-    const handleSubmit = async () => {
+    // allowDuplicate = true เฉพาะตอนแอดมินกด "เพิ่มต่อไป" หลังจาก backend แจ้งว่าเพลงซ้ำ
+    const handleSubmit = async (allowDuplicate = false) => {
         if (!songName.trim() || !artist.trim() || !lyrics.trim()) {
             Alert.alert('แจ้งเตือน', 'กรุณากรอก Song name, Artist, และ Lyrics ให้ครบ');
             return;
@@ -107,11 +108,21 @@ const AddSong = ({ navigation }) => {
                     song_mood: selectedMoods,
                     youtube_link: youtubeLink.trim(),
                     spotify_link: spotifyLink.trim(),
+                    allow_duplicate: allowDuplicate,
                 }),
             });
             const json = await res.json();
 
-            if (json.status === 'success') {
+            if (json.status === 'duplicate') {
+                // ชื่อ+ศิลปินตรงกัน หรือเป็นวิดีโอ YouTube เดียวกับเพลงที่มีอยู่แล้ว ยังไม่ได้เพิ่มอะไร
+                const list = (json.duplicates || [])
+                    .map((s) => `• ${s.song_name} — ${s.Artist || 'ไม่ระบุศิลปิน'} (id ${s.song_id})`)
+                    .join('\n');
+                Alert.alert('เพลงนี้อาจซ้ำกับเพลงที่มีอยู่แล้ว', `${list}\n\nต้องการเพิ่มต่อไปหรือไม่?`, [
+                    { text: 'ยกเลิก', style: 'cancel' },
+                    { text: 'เพิ่มต่อไป', onPress: () => handleSubmit(true) },
+                ]);
+            } else if (json.status === 'success') {
                 // ถ้า backend ดึงรูป thumbnail จากลิงก์ YouTube ไม่ได้ (เช่น ใส่ลิงก์เพลย์ลิสต์มา)
                 // จะมี image_warning ติดมาด้วย — เพลงเพิ่มสำเร็จแล้ว แค่แจ้งเตือนเรื่องรูปเพิ่ม
                 if (json.image_warning) {
@@ -236,7 +247,7 @@ const AddSong = ({ navigation }) => {
                         <TouchableOpacity
                             style={styles.enterButton}
                             activeOpacity={0.85}
-                            onPress={handleSubmit}
+                            onPress={() => handleSubmit(false)}
                             disabled={submitting}
                         >
                             {submitting ? (

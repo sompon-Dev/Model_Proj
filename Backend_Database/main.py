@@ -112,6 +112,7 @@ class AddSongData(BaseModel):
     song_mood: list[str] = []
     youtube_link: str = ""
     spotify_link: str = ""
+    allow_duplicate: bool = False  # AddSong.js ส่ง true หลังแอดมินกด "เพิ่มต่อไป" ตอนแจ้งว่าเพลงซ้ำ
 
 class Update_SongData(BaseModel):
     song_name: str
@@ -120,6 +121,12 @@ class Update_SongData(BaseModel):
     artist: str = ""
 
 # ใช้คู่กับหน้า EditAdmin.js: genre_ids/mood_ids คือรายการ "ทั้งหมด" ที่เพลงนี้ควรมีหลังบันทึก
+# PostgreSQL ไม่ยอมเก็บอักขระ NUL (\x00) ในข้อความ แล้วตอบ error "A string literal cannot contain NUL"
+# อักขระนี้มองไม่เห็นและมักติดมากับเนื้อเพลงที่คัดลอกมาจากเว็บหรือไฟล์ จึงลบทิ้งก่อนบันทึก
+def strip_nul(text):
+    return text.replace("\x00", "") if isinstance(text, str) else text
+
+
 class EditSongData(BaseModel):
     artist: str
     youtube_link: str
@@ -525,7 +532,8 @@ def create_Song(data:SongData):
     cursor.execute(
         'INSERT INTO "Song" (song_name, "Artist", spotify_Link, youtube_link, "Image_Link") '
         'VALUES (%s, %s, %s, %s, %s) RETURNING song_id',
-        (data.song_name, data.artist.strip() or None, data.spotify_Link, data.youtube_link, image_link),
+        (strip_nul(data.song_name), strip_nul(data.artist).strip() or None,
+         strip_nul(data.spotify_Link), strip_nul(data.youtube_link), image_link),
     )
     song_id = cursor.fetchone()["song_id"]
     conn.commit()
@@ -543,12 +551,13 @@ def create_Song(data:SongData):
 def create_song_full(data: AddSongData):
     from AddSong import Add_song
 
-    song_genre_str = ", ".join(data.song_genre)
-    song_mood_str = ", ".join(data.song_mood)
+    song_genre_str = strip_nul(", ".join(data.song_genre))
+    song_mood_str = strip_nul(", ".join(data.song_mood))
 
     return Add_song(
-        data.song_name, data.artist, song_genre_str,
-        data.youtube_link, data.spotify_link, song_mood_str, data.lyric,
+        strip_nul(data.song_name), strip_nul(data.artist), song_genre_str,
+        strip_nul(data.youtube_link), strip_nul(data.spotify_link), song_mood_str, strip_nul(data.lyric),
+        allow_duplicate=data.allow_duplicate,
     )
 
 
@@ -612,8 +621,8 @@ def search_Song(q: str = ""):
 def edit_Song_details(song_id: int, data: EditSongData):
     from AddSong import get_thumbnail_link  # deferred เหตุผลเดียวกับ /AddSong ด้านบน (AddSong.py import จากไฟล์นี้)
 
-    artist = data.artist.strip() or None
-    youtube_link = data.youtube_link.strip()
+    artist = strip_nul(data.artist).strip() or None
+    youtube_link = strip_nul(data.youtube_link).strip()
 
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -751,8 +760,11 @@ def read_Song(song_id: int):
 def update_Song(song_id: int, data: Update_SongData):
     from AddSong import get_thumbnail_link  # deferred เหตุผลเดียวกับ /AddSong
 
-    artist = data.artist.strip() or None
-    image_link = get_thumbnail_link(data.youtube_link)
+    song_name = strip_nul(data.song_name)
+    artist = strip_nul(data.artist).strip() or None
+    spotify_link = strip_nul(data.spotify_Link)
+    youtube_link = strip_nul(data.youtube_link)
+    image_link = get_thumbnail_link(youtube_link)
 
     conn = get_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -760,14 +772,14 @@ def update_Song(song_id: int, data: Update_SongData):
         cursor.execute(
             'UPDATE "Song" SET song_name = %s, "Artist" = %s, spotify_Link = %s, youtube_link = %s, "Image_Link" = %s '
             'WHERE song_id = %s',
-            (data.song_name, artist, data.spotify_Link, data.youtube_link, image_link, song_id),
+            (song_name, artist, spotify_link, youtube_link, image_link, song_id),
         )
         if cursor.rowcount == 0:
             return {"status": "error", "error": f"ไม่พบเพลง song_id={song_id} ในตาราง Song"}
         # history คัดลอกค่าเหล่านี้มาเก็บเอง ต้องตามให้ตรง เหมือนใน /Song/{song_id}/details
         cursor.execute(
             'UPDATE "history" SET song_name = %s, "Artist" = %s, youtube_link = %s, "Image_Link" = %s WHERE song_id = %s',
-            (data.song_name, artist, data.youtube_link, image_link, song_id),
+            (song_name, artist, youtube_link, image_link, song_id),
         )
         conn.commit()
     finally:

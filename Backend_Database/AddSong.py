@@ -137,10 +137,28 @@ def add_to_song_table(cursor, song_name, artist, youtube_link, spotify_link):
     return song_id, image_link
 
 
-def Add_song(song_name, artist, song_genre, youtube_link, spotify_link, song_mood, lyric):
+def find_duplicate_songs(cursor, song_name, artist, youtube_link):
+    """หาเพลงที่มีอยู่แล้วซึ่งนับว่า "ซ้ำ" กับเพลงที่จะเพิ่ม: ชื่อเพลง+ศิลปินตรงกัน (ไม่สนตัวพิมพ์เล็กใหญ่
+    และช่องว่างหัวท้าย) หรือลิงก์ YouTube เป็นวิดีโอเดียวกัน (เทียบรหัสวิดีโอ 11 ตัว ลิงก์ที่มี &si=... ต่อท้ายก็จับได้)
+    เพลงชื่อเดียวกันแต่คนละศิลปินและคนละวิดีโอไม่นับว่าซ้ำ เช่น "เพลงนี้เกี่ยวกับความรัก" ของ Silly Fools กับ Retrospect"""
+    video_id = get_video_id(youtube_link)
+    # position() แทน LIKE เพราะรหัสวิดีโอมี "_" ได้ ซึ่ง LIKE ตีความเป็น wildcard
+    cursor.execute(
+        'SELECT song_id, song_name, "Artist", youtube_link FROM "Song" '
+        'WHERE (lower(btrim(song_name)) = lower(btrim(%s)) '
+        '       AND lower(btrim(coalesce("Artist", \'\'))) = lower(btrim(%s))) '
+        '   OR (%s <> \'\' AND position(%s IN coalesce(youtube_link, \'\')) > 0) '
+        'ORDER BY song_id LIMIT 5',
+        (song_name, artist or "", video_id, video_id),
+    )
+    return cursor.fetchall()
+
+
+def Add_song(song_name, artist, song_genre, youtube_link, spotify_link, song_mood, lyric, allow_duplicate=False):
     """เพิ่มเพลง 1 เพลงเข้าฐานข้อมูลให้ครบ: Song -> Genre (+Genre_Song) -> Mood (+Mood_Song) -> Train_Song
     song_genre และ song_mood ใส่ได้หลายค่า คั่นด้วย comma (หลักการเดียวกันทั้งคู่ — admin เพิ่มเพลงทีละเพลง
-    แล้วเลือก mood เองได้ตอนนี้ เหมือนที่เลือก genre ได้)"""
+    แล้วเลือก mood เองได้ตอนนี้ เหมือนที่เลือก genre ได้)
+    ถ้าเจอเพลงซ้ำและ allow_duplicate=False จะไม่เพิ่ม แต่คืน status "duplicate" ให้ AddSong.js ถามยืนยันก่อน"""
     print("\n===== Add_song: ข้อมูลที่ได้รับมา =====")
     print(f"song_name     : {song_name}")
     print(f"artist        : {artist}")
@@ -156,6 +174,15 @@ def Add_song(song_name, artist, song_genre, youtube_link, spotify_link, song_moo
     # แทนที่จะเป็น tuple ธรรมดา (row[0]) อ่านแล้วรู้เลยว่าคอลัมน์ไหนคือค่าไหน ไม่ต้องจำลำดับ
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
+        if not allow_duplicate:
+            duplicates = find_duplicate_songs(cursor, song_name, artist, youtube_link)
+            if duplicates:
+                print(f"----- ไม่เพิ่ม: ซ้ำกับ song_id={[d['song_id'] for d in duplicates]} -----\n")
+                # มี "error" ด้วย เพื่อให้แอปเวอร์ชันเก่าที่ยังไม่รู้จัก status นี้โชว์ข้อความที่อ่านรู้เรื่อง
+                ids = ", ".join(str(d["song_id"]) for d in duplicates)
+                return {"status": "duplicate", "duplicates": duplicates,
+                        "error": f"มีเพลงนี้อยู่แล้ว (song_id {ids})"}
+
         song_id, image_link = add_to_song_table(cursor, song_name, artist, youtube_link, spotify_link)
 
         # list comprehension พร้อมเงื่อนไข if ท้าย: แยก genre ด้วย comma, .strip() ตัดช่องว่างหัว-ท้ายทิ้ง,
