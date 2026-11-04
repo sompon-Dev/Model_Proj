@@ -72,6 +72,29 @@ const Register = ({ navigation }) => {
         setLoading(true);
 
         try {
+            // เช็ก Username ซ้ำก่อนสร้างบัญชี: ใช้ฟังก์ชัน find_login_email ตัวเดียวกับหน้า Login
+            // (หา email จาก username) ถ้าหาเจอแปลว่ามีคนใช้ username นี้แล้ว
+            const { data: takenEmail, error: lookupError } =
+                await supabase.rpc('find_login_email', {
+                    input_username: cleanUsername,
+                });
+
+            if (lookupError) {
+                Alert.alert(
+                    'เกิดข้อผิดพลาด',
+                    'ตรวจสอบ Username ไม่สำเร็จ กรุณาลองใหม่'
+                );
+                return;
+            }
+
+            if (takenEmail) {
+                Alert.alert(
+                    'สมัครสมาชิกไม่สำเร็จ',
+                    'Username นี้ถูกใช้แล้ว กรุณาใช้ชื่ออื่น'
+                );
+                return;
+            }
+
             const { data, error } = await supabase.auth.signUp({
                 email: cleanEmail,
                 password: password,
@@ -91,6 +114,16 @@ const Register = ({ navigation }) => {
                 Alert.alert(
                     'เกิดข้อผิดพลาด',
                     'ไม่สามารถสร้างบัญชีได้ กรุณาลองใหม่'
+                );
+                return;
+            }
+
+            // Email ที่สมัครและยืนยันไปแล้ว Supabase จะไม่ตอบ error (กันคนเดาว่า email ไหนมีบัญชี)
+            // แต่ส่ง user ที่ identities เป็น list ว่างกลับมาแทน และไม่ส่ง OTP ไปให้
+            if (data.user.identities?.length === 0) {
+                Alert.alert(
+                    'สมัครสมาชิกไม่สำเร็จ',
+                    'Email นี้ถูกใช้สมัครแล้ว กรุณาเข้าสู่ระบบ หรือใช้ Email อื่น'
                 );
                 return;
             }
