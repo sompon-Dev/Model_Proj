@@ -54,6 +54,9 @@ const RECORDING_OPTIONS =
             },
         };
 
+// อัดเสียงได้นานสุดกี่มิลลิวินาที (Google รับได้ไม่เกิน 60 วินาที เผื่อไว้ 5 วินาที)
+const MAX_RECORDING_MS = 55000;
+
 const GOOGLE_AUDIO_CONFIG =
     Platform.OS === 'ios'
         ? { encoding: 'LINEAR16', sampleRateHertz: 16000 }
@@ -187,8 +190,17 @@ const Homeuser = ({ navigation }) => {
             if (data.error) {
                 Alert.alert('Google API Error', data.error.message);
             } else if (data.results?.length > 0) {
-                const transcript = data.results[0].alternatives?.[0]?.transcript?.trim() || '';
-                setSearchQuery(transcript);
+                // พูดยาวหรือมีช่วงหยุด Google จะแบ่งผลเป็นหลายท่อน (results[0], results[1], ...)
+                // ต้องเอาทุกท่อนมาต่อกัน ไม่งั้นได้แค่ท่อนแรก แล้วคำค้นสั้นลงจนหาเพลงที่ถูกได้ยากขึ้น
+                const transcript = data.results
+                    .map((r) => r.alternatives?.[0]?.transcript?.trim() || '')
+                    .filter(Boolean)
+                    .join(' ');
+                if (transcript) {
+                    setSearchQuery(transcript);
+                } else {
+                    Alert.alert('แจ้งเตือน', 'ไม่พบเสียงพูด หรือไม่สามารถแปลงเสียงได้');
+                }
             } else {
                 Alert.alert('แจ้งเตือน', 'ไม่พบเสียงพูด หรือไม่สามารถแปลงเสียงได้');
             }
@@ -199,6 +211,14 @@ const Homeuser = ({ navigation }) => {
             setIsTranscribing(false);
         }
     };
+
+    // หยุดอัดเองเมื่อครบ MAX_RECORDING_MS: speech:recognize ของ Google รับเสียงได้ไม่เกิน 1 นาที
+    // ถ้าเกินจะ error ทั้งก้อน — ถ้ากดหยุดเองก่อน isRecording จะเป็น false แล้ว timer นี้ถูกล้างทิ้ง
+    useEffect(() => {
+        if (!isRecording) return;
+        const timerId = setTimeout(stopRecording, MAX_RECORDING_MS);
+        return () => clearTimeout(timerId);
+    }, [isRecording]);
 
     // กดปุ่มไมค์: ยังไม่ได้อัด -> เริ่มอัด, กำลังอัดอยู่ -> หยุดอัดแล้วแปลงเสียงเป็นข้อความ
     const handleMicPress = () => {
