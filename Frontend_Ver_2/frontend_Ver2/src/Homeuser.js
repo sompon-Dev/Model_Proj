@@ -64,7 +64,7 @@ const GOOGLE_AUDIO_CONFIG =
 
 const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง (ส่งกลับมาเป็น genre_id + genre_name)
 const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood'; // ⚠️ IP เดียวกับ GENRE_URL (ส่งกลับมาเป็น mood_id + mood_name)
-const SONG_BY_GENRE_URL = 'https://lyriseek-api-database.onrender.com/Song/by_genre'; // ⚠️ IP เดียวกับ GENRE_URL (Backend_Database/main.py พอร์ต 8000)
+const SONG_BY_FILTER_URL = 'https://lyriseek-api-database.onrender.com/Song/by_filter'; // ⚠️ IP เดียวกับ GENRE_URL (Backend_Database/main.py พอร์ต 8000) กรองทั้ง genre และ mood
 const SEARCH_URL = 'https://sompon-dev--lyriseek-search-web.us-east.modal.run/search'; // Ver.5/API.py deploy อยู่บน Modal (ดู Ver.5/modal_app.py)
 const SONG_BY_NAMES_URL = 'https://lyriseek-api-database.onrender.com/Song/by_names'; // ⚠️ IP เดียวกับ GENRE_URL
 const RECOMMENDED_URL = 'https://lyriseek-api-database.onrender.com/trending_song/recommended'; // ⚠️ IP เดียวกับ GENRE_URL (เพลงที่แอดมินกด Add ไว้ใน MostSearch.js)
@@ -302,8 +302,10 @@ const Homeuser = ({ navigation }) => {
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         try {
+            // เพลงต้องตรงทุก genre และทุก mood ที่ติ๊กไว้ (ดู /Song/by_filter ใน Backend_Database/main.py)
             const genreIdsParam = selectedGenres.join(',');
-            const res = await fetch(`${SONG_BY_GENRE_URL}?genre_ids=${genreIdsParam}`, {
+            const moodIdsParam = selectedMoods.join(',');
+            const res = await fetch(`${SONG_BY_FILTER_URL}?genre_ids=${genreIdsParam}&mood_ids=${moodIdsParam}`, {
                 signal: controller.signal,
             });
             const json = await res.json();

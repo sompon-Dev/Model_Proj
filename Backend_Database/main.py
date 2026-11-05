@@ -793,6 +793,47 @@ def read_Song_by_genre(genre_ids: str):
     return {"status": "success", "data": songs}
 
 
+# ---------- หน้า Homeuser.js กด apply ใน Filter: ค้นเพลงตาม genre และ mood ที่ติ๊กไว้พร้อมกัน ----------
+# /Song/by_genre ด้านบนยังเก็บไว้ให้แอปเวอร์ชันเก่า (APK 0.4) ที่ยังเรียกอยู่
+@app.get("/Song/by_filter")
+def read_Song_by_filter(genre_ids: str = "", mood_ids: str = ""):
+    """รับ genre_ids และ mood_ids เป็น string คั่นด้วยจุลภาค เช่น genre_ids=1,3&mood_ids=1
+    เพลงต้องตรง "ทุกตัว" ที่ติ๊กไว้ เช่น ติ๊ก Happy + Pop + thai = เพลงที่เป็น Happy และ Pop และ thai ครบทั้ง 3
+    หมวดไหนไม่ได้ติ๊กเลย หมวดนั้นไม่ถูกใช้กรอง ไม่ติ๊กอะไรเลยทั้งสองหมวดคืน list ว่าง (เหมือน /Song/by_genre)"""
+    try:
+        # set(): ตัด id ซ้ำทิ้ง ไม่งั้นนับ "ครบทุกตัว" ด้านล่างผิด (ส่ง 1,1 มาจะกลายเป็นต้องมี 2 genre)
+        genre_id_set = {int(g) for g in genre_ids.split(",") if g.strip()}
+        mood_id_set = {int(m) for m in mood_ids.split(",") if m.strip()}
+    except ValueError:
+        return {"status": "error", "message": "genre_ids/mood_ids ต้องเป็นตัวเลขคั่นด้วยจุลภาค เช่น 1,13"}
+
+    # แต่ละหมวด: หาเพลงที่จับคู่กับ id ที่ติ๊กไว้ แล้วนับว่าเพลงนั้นจับคู่ได้กี่ตัว (COUNT DISTINCT)
+    # ถ้านับได้เท่ากับจำนวนที่ติ๊กไว้ แปลว่าเพลงนั้นมีครบทุกตัว — ข้ามหมวดก็ต้องผ่านทุกหมวด (AND)
+    conditions, params = [], []
+    for table, column, id_set in (("Genre_Song", "genre_id", genre_id_set), ("Mood_Song", "mood_id", mood_id_set)):
+        if id_set:
+            conditions.append(
+                f'song_id IN (SELECT song_id FROM "{table}" WHERE {column} = ANY(%s) '
+                f'GROUP BY song_id HAVING COUNT(DISTINCT {column}) = %s)'
+            )
+            params += [list(id_set), len(id_set)]
+    if not conditions:
+        return {"status": "success", "data": []}
+
+    conn = get_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    # LIMIT 200 ด้วยเหตุผลเดียวกับ /Song/by_genre (genre ยอดนิยมมีเพลงหลายพันเพลง แอปจะค้าง)
+    cursor.execute(
+        'SELECT song_id, song_name, "Artist", spotify_Link, youtube_link, "Image_Link" FROM "Song" '
+        f'WHERE {" AND ".join(conditions)} ORDER BY song_id LIMIT 200',
+        params,
+    )
+    songs = cursor.fetchall()
+    conn.close()
+
+    return {"status": "success", "data": songs}
+
+
 # ---------- หน้า Homeuser.js เรียก endpoint นี้หลังค้นหาผ่านโมเดล Ver.5 ----------
 # ผลลัพธ์จากโมเดลมีแค่ song_name/artist (ข้อความ) ไม่มี song_id เพราะโมเดลไม่เชื่อมกับ database เลย
 # endpoint นี้รับชื่อเพลงที่เจอมาเป็น list แล้วไปหาใน Song ว่าชื่อนี้ song_id/youtube_link คืออะไร
