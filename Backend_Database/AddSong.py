@@ -97,6 +97,19 @@ def add_train_song(cursor, song_id, song_name, artist, lyric):
     print(f"  [ตาราง Train_Song] เก็บเนื้อเพลง '{song_name}' (artist={artist})")
 
 
+def add_trending_song(cursor, song_id, song_name):
+    """สร้างแถวเพลงใหม่ในตาราง trending_song ไว้ตั้งแต่ตอนเพิ่มเพลง (TOR ข้อ 5: ส่ง song_id, song_name
+    ไปแฟ้มข้อมูลเทรนด์) ทุกยอดเริ่มที่ 0 — พอมีคนกดฟัง /trending_song/increment จะเจอแถวนี้แล้ว +1 ต่อเอง
+    trend_add ไม่ต้องใส่ ตารางตั้งค่าเริ่มต้นเป็น false ไว้แล้ว (ยังไม่ใช่เพลงแนะนำ)"""
+    cursor.execute(
+        'INSERT INTO "trending_song" '
+        '(song_id, trend_song_name, trend_alltime, trend_one_week, trend_one_month, trend_one_year) '
+        'VALUES (%s, %s, 0, 0, 0, 0)',
+        (song_id, song_name),
+    )
+    print(f"  [ตาราง trending_song] เพิ่ม song_id={song_id} (ยอดเริ่มต้น 0)")
+
+
 YOUTUBE_LINK_RE = re.compile(
     r"^https?://(?:[a-z0-9-]+\.)*(?:youtube\.com/\S*[?&]v=|youtu\.be/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])",
     re.IGNORECASE,
@@ -155,7 +168,7 @@ def find_duplicate_songs(cursor, song_name, artist, youtube_link):
 
 
 def Add_song(song_name, artist, song_genre, youtube_link, spotify_link, song_mood, lyric, allow_duplicate=False):
-    """เพิ่มเพลง 1 เพลงเข้าฐานข้อมูลให้ครบ: Song -> Genre (+Genre_Song) -> Mood (+Mood_Song) -> Train_Song
+    """เพิ่มเพลง 1 เพลงเข้าฐานข้อมูลให้ครบ: Song -> Genre (+Genre_Song) -> Mood (+Mood_Song) -> Train_Song -> trending_song
     song_genre และ song_mood ใส่ได้หลายค่า คั่นด้วย comma (หลักการเดียวกันทั้งคู่ — admin เพิ่มเพลงทีละเพลง
     แล้วเลือก mood เองได้ตอนนี้ เหมือนที่เลือก genre ได้)
     ถ้าเจอเพลงซ้ำและ allow_duplicate=False จะไม่เพิ่ม แต่คืน status "duplicate" ให้ AddSong.js ถามยืนยันก่อน"""
@@ -200,6 +213,7 @@ def Add_song(song_name, artist, song_genre, youtube_link, spotify_link, song_moo
             add_mood_song(cursor, song_id, mood_id)
 
         add_train_song(cursor, song_id, song_name, artist, lyric)
+        add_trending_song(cursor, song_id, song_name)
 
         conn.commit()  # ยืนยันบันทึกการเปลี่ยนแปลงทั้งหมดที่ทำมาในฟังก์ชันนี้ลงฐานข้อมูลจริง (ถ้าไม่ commit จะไม่ถูกบันทึกจริง)
         print(f"----- สำเร็จ: song_id={song_id}, genres_linked={genres}, moods_linked={moods}, "
