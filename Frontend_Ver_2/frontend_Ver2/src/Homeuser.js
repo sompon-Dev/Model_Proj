@@ -498,14 +498,15 @@ const Homeuser = ({ navigation }) => {
                         <View style={styles.searchInputWrapper}>
                             <TextInput
                                 style={styles.searchInput}
-                                placeholder="Search for music"
+                                placeholder="Search For music"
                                 placeholderTextColor="#777777"
                                 textAlign="center"
                                 value={searchQuery}
                                 onChangeText={setSearchQuery}
                                 onSubmitEditing={handleSearchSubmit}
                             />
-                            <Text style={styles.searchSubtext}>lyrics/genre/mood</Text>
+                            
+                            {/*<Text style={styles.searchSubtext}>lyrics/genre/mood</Text>*/}
                         </View>
                         <TouchableOpacity
                             activeOpacity={0.7}

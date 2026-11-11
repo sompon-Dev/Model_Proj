@@ -86,12 +86,15 @@ def batch_ranks(sm, queries, targets, song_idx_per_chunk, key_to_idx):
         # encode คำค้นทั้ง batch (สูงสุด BATCH_SIZE คำค้น) พร้อมกันในการเรียกครั้งเดียว ได้ตาราง (B, 768)
         # กลับมา — ต่างจาก Search.py ปกติที่ encode ทีละคำค้นได้เวกเตอร์เดียว (768,) นี่คือจุดที่ทำให้เร็วขึ้นมาก
         q_vecs = sm.model.encode(
-            ["query: " + p for p in prepped], convert_to_tensor=True,
-            normalize_embeddings=True, batch_size=64, show_progress_bar=False,
+            prepped, convert_to_tensor=True,
+            batch_size=64, show_progress_bar=False,
         )   # (B, 768)
         # sm.embeddings (n_chunks, 768) @ q_vecs.T (768, B) = (n_chunks, B): คูณเมทริกซ์ครั้งเดียว ได้คะแนน
         # ความคล้ายของ "ทุก chunk" เทียบกับ "ทุกคำค้นใน batch" พร้อมกันหมด (แทนการวนลูปทำทีละคำค้น)
-        dense = ((sm.embeddings @ q_vecs.T - 0.70) / 0.25).clamp(0, 1)   # (n_chunks, B)
+        # ใช้ช่วง cosine ที่ tune แล้วจาก Search.py (Ver.5: 0.60-0.90); ถ้าไม่มี (เช่น Ver.4) ใช้ค่าเดิม 0.70-0.95
+        lo = getattr(sm, "DENSE_LO", 0.70)
+        hi = getattr(sm, "DENSE_HI", 0.95)
+        dense = ((sm.embeddings @ q_vecs.T - lo) / (hi - lo)).clamp(0, 1)   # (n_chunks, B)
 
         q_tfidf = sm.tfidf.transform(prepped)                            # (B, vocab) sparse
         # เหมือน dense แต่ใช้ TF-IDF: คูณเมทริกซ์ chunk ทุกตัวกับ query ทุกตัวใน batch พร้อมกัน แล้ว .toarray() แปลง sparse matrix เป็นตารางเลขปกติ

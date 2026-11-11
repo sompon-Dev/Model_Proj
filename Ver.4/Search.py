@@ -36,11 +36,11 @@ def search(query_text, top_k=11, w_dense=W_DENSE):
         return []
 
     # 4. คะแนนของแต่ละ chunk = ความหมายที่ใกล้กัน + คำที่ตรงกัน (ทั้งคู่อยู่ในช่วง 0-1)
-    #model.encode("query: " + query, convert_to_tensor=True, normalize_embeddings=True)
+    #model.encode("query: " + query, convert_to_tensor=True)
         # * model.encode() คือการเปลี่ยนข้อความในตัวแปร query นั้นเป็นตัวเลข
         # * model.encode(convert_to_tensor=True) คือการให้ return ออกมาเป็น tensor โดยปกติจะมาเป็น numpy เอาไว้ให้การ์ดจอทำงาน ไวขึ้น
-        # * model.encode(normalize_embeddings=True) คล้ายกับการปรับ Vector ให้โดยใช้ minmax ให้ค่าของมัน อยู่ที่ 1
-    q_vec = model.encode("query: " + query, convert_to_tensor=True, normalize_embeddings=True)
+        # * ไม่ต้องใส่ normalize_embeddings=True เพราะ E5 มีขั้น Normalize ในตัวอยู่แล้ว (ได้เวกเตอร์ยาว 1 เสมอ)
+    q_vec = model.encode("query: " + query, convert_to_tensor=True)
     #((embeddings @ q_vec - 0.70) / 0.25).clamp(0, 1)
         # นำทุกเพลงนั้นมาจัดคะแนน(Score) ตามความใกล้เคียงของ input มีเป็น100เพลงก็จัดคะแนนทั้ง100เพลง นำมาลบ 0.70 เพื่อให้เพลงที่ไม่ใกล้เคียงมีค่า <0 จากนั้นก็ทำการscaling ให้มันอยู่ในค่าระหว่าง 0-1
         # เพลงที่ไม่ใกล้เคียงจะมีค่า == 0 มากกว่านั้นก็จะมีจัดได้ว่ามีความหมายใกล้เคียงกับ input

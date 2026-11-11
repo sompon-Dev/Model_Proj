@@ -47,11 +47,11 @@ for trial in range(2):   # รัน 2 รอบ เพราะรอบแร�
     t1 = time.time()
     prepped = [preprocess(q) for q in queries]
     # encode คำค้นทั้ง 300 พร้อมกันในการเรียกครั้งเดียว ได้ตาราง (300, 768) กลับมา
-    q_vecs = sm.model.encode(["query: " + p for p in prepped], convert_to_tensor=True,
-                              normalize_embeddings=True, batch_size=64, show_progress_bar=False)
+    q_vecs = sm.model.encode(prepped, convert_to_tensor=True,
+                              batch_size=64, show_progress_bar=False)
     # sm.embeddings (n_chunks, 768) @ q_vecs.T (768, 300) = (n_chunks, 300): คูณเมทริกซ์ครั้งเดียว
     # ได้คะแนนความคล้ายของทุก chunk เทียบกับทุกคำค้นในชุดนี้พร้อมกันหมด
-    dense = ((sm.embeddings @ q_vecs.T - 0.70) / 0.25).clamp(0, 1)
+    dense = ((sm.embeddings @ q_vecs.T - sm.DENSE_LO) / (sm.DENSE_HI - sm.DENSE_LO)).clamp(0, 1)
     q_tfidf = sm.tfidf.transform(prepped)
     # เหมือน dense แต่ใช้ TF-IDF แล้ว .toarray() แปลง sparse matrix เป็นตารางเลขปกติ
     lexical = torch.tensor((sm.chunk_tfidf @ q_tfidf.T).toarray(), dtype=torch.float32)

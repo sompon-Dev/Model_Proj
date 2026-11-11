@@ -176,7 +176,7 @@ const AddSong = ({ navigation }) => {
                     <View style={styles.inputBox}>
                         <TextInput
                             style={styles.input}
-                            placeholder="Song name"
+                            placeholder="Song Name"
                             placeholderTextColor="#2D3748"
                             value={songName}
                             onChangeText={setSongName}

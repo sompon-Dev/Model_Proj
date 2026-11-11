@@ -8,7 +8,11 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from textproc import preprocess
 
 BASE_PATH = Path(__file__).parent
-W_DENSE   = 0.3   # น้ำหนักความหมาย (embedding) ส่วนที่เหลือเป็นน้ำหนักคำที่ตรงกัน (TF-IDF)
+W_DENSE   = 0.2   # น้ำหนักความหมาย (embedding) ส่วนที่เหลือเป็นน้ำหนักคำที่ตรงกัน (TF-IDF)
+# ค่า W_DENSE / DENSE_LO / DENSE_HI ได้จาก grid search 400 ชุดค่า บนชุด tune 1,000 เพลง (TestCase_2.csv)
+# แล้วยืนยันบนชุด test อีก 1,000 เพลงที่ไม่ซ้ำกัน: MRR 0.8969 -> 0.9035, P@1 0.849 -> 0.858 (ค่าเดิม 0.3 / 0.70 / 0.95)
+DENSE_LO  = 0.60  # cosine ที่ต่ำกว่านี้ถือว่าไม่ใกล้เคียง -> dense = 0
+DENSE_HI  = 0.90  # cosine ที่สูงกว่านี้ถือว่าใกล้เคียงเต็มที่ -> dense = 1
 
 # 1. โหลด embedding ของ chunk และ metadata
 # weights_only=True บอก torch.load ว่าไฟล์นี้มีแค่ตัวเลข/tensor ไม่มีโค้ด Python แอบฝังมา
@@ -30,10 +34,6 @@ chunk_tfidf = tfidf.fit_transform(c["text"] for c in chunks)  # fit_transform �
 
 
 def reload_index():
-    """โหลด chunks_embeddings.pt / chunks_metadata.pkl ใหม่จากดิสก์ แล้วแก้ตัวแปร module-level
-    (embeddings, songs, chunks, tfidf, chunk_tfidf) ตรงๆ — เรียกหลังจาก BuildindexUpdate.update_index()
-    เขียนทับไฟล์ไปแล้ว เพื่อให้ search() ที่รันอยู่ในโปรเซสเดียวกัน (container เดิมที่ยังไม่ cold start
-    ใหม่) เห็นเพลงที่เพิ่งเทรนเพิ่มทันที ไม่ต้องรอ container รีสตาร์ท"""
     global embeddings, songs, chunks, tfidf, chunk_tfidf
     embeddings = torch.load(BASE_PATH / "chunks_embeddings.pt", weights_only=True)
     with open(BASE_PATH / "chunks_metadata.pkl", "rb") as f:
@@ -50,15 +50,15 @@ def search(query_text, top_k=11, w_dense=W_DENSE):
         return []
 
     # 4. คะแนนของแต่ละ chunk = ความหมายที่ใกล้กัน + คำที่ตรงกัน (ทั้งคู่อยู่ในช่วง 0-1)
-    #model.encode("query: " + query, convert_to_tensor=True, normalize_embeddings=True)
+    #model.encode(query, convert_to_tensor=True)
         # * model.encode() คือการเปลี่ยนข้อความในตัวแปร query นั้นเป็นตัวเลข
         # * model.encode(convert_to_tensor=True) คือการให้ return ออกมาเป็น tensor โดยปกติจะมาเป็น numpy เอาไว้ให้การ์ดจอทำงาน ไวขึ้น
-        # * model.encode(normalize_embeddings=True) คล้ายกับการปรับ Vector ให้โดยใช้ minmax ให้ค่าของมัน อยู่ที่ 1
-    q_vec = model.encode("query: " + query, convert_to_tensor=True, normalize_embeddings=True)
-    #((embeddings @ q_vec - 0.70) / 0.25).clamp(0, 1)
-        # นำทุกเพลงนั้นมาจัดคะแนน(Score) ตามความใกล้เคียงของ input มีเป็น100เพลงก็จัดคะแนนทั้ง100เพลง นำมาลบ 0.70 เพื่อให้เพลงที่ไม่ใกล้เคียงมีค่า <0 จากนั้นก็ทำการscaling ให้มันอยู่ในค่าระหว่าง 0-1
+        # * ไม่ต้องใส่ normalize_embeddings=True เพราะ E5 มีขั้น Normalize ในตัวอยู่แล้ว (ได้เวกเตอร์ยาว 1 เสมอ)
+    q_vec = model.encode(query, convert_to_tensor=True)
+    #((embeddings @ q_vec - DENSE_LO) / (DENSE_HI - DENSE_LO)).clamp(0, 1)
+        # นำทุกเพลงนั้นมาจัดคะแนน(Score) ตามความใกล้เคียงของ input มีเป็น100เพลงก็จัดคะแนนทั้ง100เพลง นำมาลบ DENSE_LO (0.60) เพื่อให้เพลงที่ไม่ใกล้เคียงมีค่า <0 จากนั้นก็ทำการscaling ให้มันอยู่ในค่าระหว่าง 0-1
         # เพลงที่ไม่ใกล้เคียงจะมีค่า == 0 มากกว่านั้นก็จะมีจัดได้ว่ามีความหมายใกล้เคียงกับ input
-    dense = ((embeddings @ q_vec - 0.70) / 0.25).clamp(0, 1)   # cosine ของ E5 มักอยู่ราว 0.70-0.95
+    dense = ((embeddings @ q_vec - DENSE_LO) / (DENSE_HI - DENSE_LO)).clamp(0, 1)   # cosine ของ chunk ที่ถูกต้องอยู่ราว 0.81-0.91
     #torch.tensor((chunk_tfidf @ tfidf.transform([query]).T).toarray().ravel(), dtype=torch.float32)
     # tfidf.transform([query]) แปลง query เป็นเวกเตอร์ TF-IDF แบบเดียวกับ chunk (sparse matrix รูปร่าง 1 แถว)
     # chunk_tfidf @ ...T คือคูณตาราง chunk ทุกแถวกับเวกเตอร์ query นี้ (คล้าย dense score แต่ใช้ TF-IDF)

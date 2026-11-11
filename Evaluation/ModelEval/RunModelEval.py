@@ -82,10 +82,10 @@ def batch_ranks(sm, queries, targets, song_idx_per_chunk, key_to_idx, w_dense):
         prepped = [preprocess(q) for q in batch_q]
 
         q_vecs = sm.model.encode(
-            ["query: " + p for p in prepped], convert_to_tensor=True,
-            normalize_embeddings=True, batch_size=64, show_progress_bar=False,
+            prepped, convert_to_tensor=True,
+            batch_size=64, show_progress_bar=False,
         )
-        dense = ((sm.embeddings @ q_vecs.T - 0.70) / 0.25).clamp(0, 1)
+        dense = ((sm.embeddings @ q_vecs.T - sm.DENSE_LO) / (sm.DENSE_HI - sm.DENSE_LO)).clamp(0, 1)
 
         q_tfidf = sm.tfidf.transform(prepped)
         lexical = torch.tensor(
