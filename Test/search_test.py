@@ -77,7 +77,7 @@ cosine = []
 cosine = embeddings @ q_vec
 #print("cosine :", cosine.shape, cosine.min().item(), cosine.max().item())
 
-dense = ((cosine - 0.60) / 0.30).clamp(0, 1)   # LO=0.60, HI=0.90 (ค่าที่ tune แล้ว เหมือน Ver.5/Search.py)
+dense = (cosine - 0.60) / 0.30   # LO=0.60, HI=0.90 (ค่าที่ tune แล้ว เหมือน Ver.5/Search.py ไม่มี clamp แล้ว)
 #print("dense :", dense.shape, dense.min().item(), dense.max().item())
 
 

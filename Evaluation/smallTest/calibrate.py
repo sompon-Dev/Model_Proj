@@ -51,7 +51,7 @@ for trial in range(2):   # รัน 2 รอบ เพราะรอบแร�
                               batch_size=64, show_progress_bar=False)
     # sm.embeddings (n_chunks, 768) @ q_vecs.T (768, 300) = (n_chunks, 300): คูณเมทริกซ์ครั้งเดียว
     # ได้คะแนนความคล้ายของทุก chunk เทียบกับทุกคำค้นในชุดนี้พร้อมกันหมด
-    dense = ((sm.embeddings @ q_vecs.T - sm.DENSE_LO) / (sm.DENSE_HI - sm.DENSE_LO)).clamp(0, 1)
+    dense = ((sm.embeddings @ q_vecs.T - sm.DENSE_LO) / (sm.DENSE_HI - sm.DENSE_LO))
     q_tfidf = sm.tfidf.transform(prepped)
     # เหมือน dense แต่ใช้ TF-IDF แล้ว .toarray() แปลง sparse matrix เป็นตารางเลขปกติ
     lexical = torch.tensor((sm.chunk_tfidf @ q_tfidf.T).toarray(), dtype=torch.float32)

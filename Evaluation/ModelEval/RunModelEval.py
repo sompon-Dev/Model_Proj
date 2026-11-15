@@ -85,7 +85,7 @@ def batch_ranks(sm, queries, targets, song_idx_per_chunk, key_to_idx, w_dense):
             prepped, convert_to_tensor=True,
             batch_size=64, show_progress_bar=False,
         )
-        dense = ((sm.embeddings @ q_vecs.T - sm.DENSE_LO) / (sm.DENSE_HI - sm.DENSE_LO)).clamp(0, 1)
+        dense = ((sm.embeddings @ q_vecs.T - sm.DENSE_LO) / (sm.DENSE_HI - sm.DENSE_LO))
 
         q_tfidf = sm.tfidf.transform(prepped)
         lexical = torch.tensor(
