@@ -14,11 +14,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
-const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood'; // ⚠️ IP เดียวกับ GENRE_URL
-const ADD_SONG_URL = 'https://lyriseek-api-database.onrender.com/AddSong'; // ⚠️ IP เดียวกับ GENRE_URL
+// หน้าเพิ่มเพลงใหม่ (สำหรับแอดมิน)
+// กดบันทึกแล้ว server (Render) จะเพิ่มข้อมูลลงหลายตารางในครั้งเดียว:
+//   Song           ข้อมูลเพลง ชื่อ ศิลปิน ลิงก์ และรูปปก (ดึงจากลิงก์ YouTube ให้เอง)
+//   Genre_Song     จับคู่เพลงกับแนวเพลงที่เลือก
+//   Mood_Song      จับคู่เพลงกับอารมณ์เพลงที่เลือก
+//   Train_Song     ใส่เพลงเข้าคิวรอฝึกเข้าโมเดล (แอดมินไปกดฝึกต่อในหน้า UpdateModel)
+//   trending_song  สร้างแถวสถิติยอดฟังของเพลงนี้ เริ่มที่ 0
+// ถ้าขั้นไหนพลาด server จะยกเลิกทั้งหมด (rollback) ไม่มีข้อมูลค้างครึ่งๆ กลางๆ
 
-// เรียก fetch พร้อม timeout กันหน้าค้างถ้า server ไม่ตอบ (เหมือนที่ทำไว้ใน Homeuser.js)
+// API อ่านรายการแนวเพลงและอารมณ์เพลง
+const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre';
+const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood';
+// API บันทึกเพลงใหม่
+const ADD_SONG_URL = 'https://lyriseek-api-database.onrender.com/AddSong';
+
+// fetch แบบมีเวลาหมดอายุ (ค่าเริ่มต้น 10 วินาที)
+// ถ้า server ไม่ตอบภายในเวลาที่กำหนด จะยกเลิกคำขอให้เอง หน้าจอจะได้ไม่ค้าง
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -30,24 +42,29 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
 };
 
 const AddSong = ({ navigation }) => {
+    // ค่าที่แอดมินกรอกในฟอร์ม
     const [songName, setSongName] = useState('');
     const [artist, setArtist] = useState('');
     const [lyrics, setLyrics] = useState('');
     const [youtubeLink, setYoutubeLink] = useState('');
-    const [spotifyLink, setSpotifyLink] = useState('');
+    const [spotifyLink, setSpotifyLink] = useState(''); // หน้าจอยังไม่มีช่องกรอก จึงส่งเป็นค่าว่างเสมอ
 
-    const [genreList, setGenreList] = useState([]); // [{ genre_id, genre_name }, ...]
-    const [moodList, setMoodList] = useState([]); // [{ mood_id, mood_name }, ...]
-    const [selectedGenres, setSelectedGenres] = useState([]); // ชื่อ genre ที่ติ๊กไว้
-    const [selectedMoods, setSelectedMoods] = useState([]); // ชื่อ mood ที่ติ๊กไว้
-    const [genreSearch, setGenreSearch] = useState(''); // ช่อง search บนสุดของ modal genre
-    const [moodSearch, setMoodSearch] = useState(''); // ช่อง search บนสุดของ modal mood
+    // แนวเพลงและอารมณ์เพลงที่มีในระบบ (โหลดตอนเปิดหน้าต่างเลือก)
+    const [genreList, setGenreList] = useState([]);
+    const [moodList, setMoodList] = useState([]);
+    // ชื่อแนวเพลงและอารมณ์เพลงที่ติ๊กเลือกให้เพลงนี้ (เลือกได้หลายอัน)
+    const [selectedGenres, setSelectedGenres] = useState([]);
+    const [selectedMoods, setSelectedMoods] = useState([]);
+    // คำค้นในช่องค้นหาของหน้าต่างเลือก genre / mood
+    const [genreSearch, setGenreSearch] = useState('');
+    const [moodSearch, setMoodSearch] = useState('');
 
-    const [genreModalVisible, setGenreModalVisible] = useState(false);
-    const [moodModalVisible, setMoodModalVisible] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
+    const [genreModalVisible, setGenreModalVisible] = useState(false); // หน้าต่างเลือก genre เปิดอยู่ไหม
+    const [moodModalVisible, setMoodModalVisible] = useState(false);   // หน้าต่างเลือก mood เปิดอยู่ไหม
+    const [submitting, setSubmitting] = useState(false);               // true ระหว่างกำลังบันทึกเพลง
 
-    // กดเปิด dropdown genre: โหลดรายชื่อ genre จาก server (โหลดครั้งแรกครั้งเดียว) แล้วเปิด modal
+    // เปิดหน้าต่างเลือก genre
+    // โหลดรายการจาก server เฉพาะครั้งแรก ครั้งต่อไปใช้รายการที่โหลดไว้แล้ว ไม่ต้องโหลดซ้ำ
     const openGenreModal = () => {
         setGenreModalVisible(true);
         if (genreList.length === 0) {
@@ -58,7 +75,7 @@ const AddSong = ({ navigation }) => {
         }
     };
 
-    // กดเปิด dropdown mood: โหลดรายชื่อ mood จาก server (โหลดครั้งแรกครั้งเดียว) แล้วเปิด modal
+    // เปิดหน้าต่างเลือก mood (ทำงานแบบเดียวกับ openGenreModal)
     const openMoodModal = () => {
         setMoodModalVisible(true);
         if (moodList.length === 0) {
@@ -69,7 +86,8 @@ const AddSong = ({ navigation }) => {
         }
     };
 
-    // ติ๊ก/ถอนติ๊ก genre ในรายการที่เลือกไว้ (เหมือน checkbox)
+    // ติ๊ก/ยกเลิกติ๊ก genre และ mood (ทำงานเหมือน checkbox)
+    // เก็บเป็น "ชื่อ" ไม่ใช่ id เพราะ server รับชื่อแล้วไปหา id เอง (ถ้าไม่เจอชื่อนั้นจะสร้างหมวดใหม่ให้)
     const toggleGenre = (genreName) => {
         setSelectedGenres((prev) =>
             prev.includes(genreName)
@@ -78,7 +96,6 @@ const AddSong = ({ navigation }) => {
         );
     };
 
-    // ติ๊ก/ถอนติ๊ก mood ในรายการที่เลือกไว้ (เหมือน checkbox)
     const toggleMood = (moodName) => {
         setSelectedMoods((prev) =>
             prev.includes(moodName)
@@ -87,8 +104,17 @@ const AddSong = ({ navigation }) => {
         );
     };
 
-    // กดปุ่ม Enter: ส่งข้อมูลเพลงทั้งหมดไปที่ /AddSong ให้เพิ่มลง database ให้ครบทุกตาราง
-    // allowDuplicate = true เฉพาะตอนแอดมินกด "เพิ่มต่อไป" หลังจาก backend แจ้งว่าเพลงซ้ำ
+    // กดปุ่มบันทึกเพลง
+    // allowDuplicate = อนุญาตให้เพิ่มแม้เพลงอาจซ้ำ (ครั้งแรกเป็น false, ถ้าแอดมินกด "เพิ่มต่อไป" จะเรียกซ้ำด้วย true)
+    // ขั้นตอน:
+    //   1) ต้องกรอกชื่อเพลง ศิลปิน และเนื้อเพลงให้ครบ (ช่องอื่นเว้นว่างได้)
+    //   2) ส่งข้อมูลทั้งหมดไปที่ server (ตัดช่องว่างหน้า-หลังออกก่อน)
+    //   3) ดูคำตอบจาก server ซึ่งมี 3 แบบ:
+    //        'duplicate' -> server เจอเพลงที่อาจซ้ำ จะยังไม่บันทึก
+    //                       แสดงรายชื่อเพลงที่ซ้ำ ให้แอดมินเลือกยกเลิก หรือกด "เพิ่มต่อไป"
+    //        'success'   -> บันทึกแล้ว ถ้าหารูปปกไม่เจอจะได้คำเตือนเพิ่ม (image_warning)
+    //                       จากนั้นกลับไปหน้าเมนูแอดมิน
+    //        อื่นๆ       -> แสดงข้อความ error จาก server
     const handleSubmit = async (allowDuplicate = false) => {
         if (!songName.trim() || !artist.trim() || !lyrics.trim()) {
             Alert.alert('แจ้งเตือน', 'กรุณากรอก Song name, Artist, และ Lyrics ให้ครบ');
@@ -114,7 +140,6 @@ const AddSong = ({ navigation }) => {
             const json = await res.json();
 
             if (json.status === 'duplicate') {
-                // ชื่อ+ศิลปินตรงกัน หรือเป็นวิดีโอ YouTube เดียวกับเพลงที่มีอยู่แล้ว ยังไม่ได้เพิ่มอะไร
                 const list = (json.duplicates || [])
                     .map((s) => `• ${s.song_name} — ${s.Artist || 'ไม่ระบุศิลปิน'} (id ${s.song_id})`)
                     .join('\n');
@@ -123,8 +148,6 @@ const AddSong = ({ navigation }) => {
                     { text: 'เพิ่มต่อไป', onPress: () => handleSubmit(true) },
                 ]);
             } else if (json.status === 'success') {
-                // ถ้า backend ดึงรูป thumbnail จากลิงก์ YouTube ไม่ได้ (เช่น ใส่ลิงก์เพลย์ลิสต์มา)
-                // จะมี image_warning ติดมาด้วย — เพลงเพิ่มสำเร็จแล้ว แค่แจ้งเตือนเรื่องรูปเพิ่ม
                 if (json.image_warning) {
                     Alert.alert('เพิ่มเพลงสำเร็จ แต่ไม่พบรูปภาพ', json.image_warning);
                 } else {
@@ -149,7 +172,6 @@ const AddSong = ({ navigation }) => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header (Back button on left, Avatar on right) */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         style={styles.circleButton}
@@ -168,11 +190,9 @@ const AddSong = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Form Card Container */}
                 <View style={styles.cardContainer}>
                     <Text style={styles.formTitle}>Add Song</Text>
 
-                    {/* Song name */}
                     <View style={styles.inputBox}>
                         <TextInput
                             style={styles.input}
@@ -183,7 +203,6 @@ const AddSong = ({ navigation }) => {
                         />
                     </View>
 
-                    {/* Artist */}
                     <View style={styles.inputBox}>
                         <TextInput
                             style={styles.input}
@@ -194,7 +213,6 @@ const AddSong = ({ navigation }) => {
                         />
                     </View>
 
-                    {/* Link YouTube — ไม่กรอกก็ได้ ส่งเป็นค่าว่างไปก่อน */}
                     <View style={styles.inputBox}>
                         <TextInput
                             style={styles.input}
@@ -205,7 +223,6 @@ const AddSong = ({ navigation }) => {
                             autoCapitalize="none"
                         />
                     </View>
-                    {/* Lyrics */}
                     <View style={[styles.inputBox, styles.lyricsBox]}>
                         <TextInput
                             style={[styles.input, styles.lyricsInput]}
@@ -218,7 +235,6 @@ const AddSong = ({ navigation }) => {
                         />
                     </View>
 
-                    {/* Genre Dropdown Trigger */}
                     <TouchableOpacity
                         style={[styles.inputBox, styles.dropdownBox]}
                         activeOpacity={0.8}
@@ -230,7 +246,6 @@ const AddSong = ({ navigation }) => {
                         <Feather name="chevron-down" size={24} color="#1E1E1E" />
                     </TouchableOpacity>
 
-                    {/* Mood Dropdown Trigger */}
                     <TouchableOpacity
                         style={[styles.inputBox, styles.dropdownBox]}
                         activeOpacity={0.8}
@@ -242,7 +257,6 @@ const AddSong = ({ navigation }) => {
                         <Feather name="chevron-down" size={24} color="#1E1E1E" />
                     </TouchableOpacity>
 
-                    {/* Enter Button */}
                     <View style={styles.buttonContainer}>
                         <TouchableOpacity
                             style={styles.enterButton}
@@ -260,7 +274,6 @@ const AddSong = ({ navigation }) => {
                 </View>
             </ScrollView>
 
-            {/* Genre Modal: ติ๊กเลือกได้หลาย genre */}
             <Modal
                 visible={genreModalVisible}
                 transparent
@@ -321,7 +334,6 @@ const AddSong = ({ navigation }) => {
                 </TouchableOpacity>
             </Modal>
 
-            {/* Mood Modal: ติ๊กเลือกได้หลาย mood */}
             <Modal
                 visible={moodModalVisible}
                 transparent

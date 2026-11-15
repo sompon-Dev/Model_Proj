@@ -12,12 +12,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const TRAIN_SONG_URL = 'https://lyriseek-api-database.onrender.com/Train_Song'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
-const UPDATE_MODEL_URL = 'https://lyriseek-api-database.onrender.com/Train_Song/update_model'; // ⚠️ IP เดียวกับ TRAIN_SONG_URL
-const UPDATE_MODEL_POLL_MS = 3000;
-const UPDATE_MODEL_MAX_WAIT_MS = 360000; // มากกว่า timeout 280 วิที่ main.py รอ Modal
+// ภาพรวมของหน้านี้ (เพิ่มเพลงใหม่เข้าโมเดลค้นหา):
+//   ตอนแอดมินเพิ่มเพลงในหน้า AddSong ระบบจะใส่เพลงไว้ใน "คิวรอฝึก" (ตาราง Train_Song) ด้วย
+//   เพลงในคิวนี้ยังค้นหาจากเนื้อร้องไม่เจอ จนกว่าแอดมินจะเลือกแล้วกด Update Model ในหน้านี้
+//   ลำดับการทำงานหลังกด:
+//     แอป -> Render (/Train_Song/update_model) -> Modal (/update_model)
+//     Modal ตัดเนื้อเพลงเป็นท่อนๆ, แปลงเป็นเวกเตอร์ด้วยโมเดล E5, ต่อท้ายไฟล์ index เดิม แล้วโหลด index ใหม่
+//     ทำเสร็จแล้ว Render จะลบเพลงที่ฝึกสำเร็จออกจากคิว Train_Song
 
-// เรียก fetch พร้อม timeout กันหน้าค้างถ้า server ไม่ตอบ (เหมือนที่ทำไว้ใน Homeuser.js/AddSong.js)
+// API อ่านรายการเพลงที่รอฝึก (ตาราง Train_Song)
+const TRAIN_SONG_URL = 'https://lyriseek-api-database.onrender.com/Train_Song';
+// API สั่งเริ่มฝึก และใช้ถามความคืบหน้า (ต่อท้ายด้วย /<job_id>)
+const UPDATE_MODEL_URL = 'https://lyriseek-api-database.onrender.com/Train_Song/update_model';
+// ถามความคืบหน้าทุก 3 วินาที
+const UPDATE_MODEL_POLL_MS = 3000;
+// รอได้นานสุด 6 นาที (Modal ตั้งเวลาให้ฝึกได้ 5 นาที เผื่อไว้อีก 1 นาที)
+const UPDATE_MODEL_MAX_WAIT_MS = 360000;
+
+// fetch แบบมีเวลาหมดอายุ (ค่าเริ่มต้น 10 วินาที)
+// fetch ปกติจะรอไปเรื่อยๆ ถ้า server ไม่ตอบ หน้าจอจะค้าง
+// ตัวนี้ใช้ AbortController ตั้งนาฬิกาไว้ ถ้าเกินเวลาจะยกเลิกคำขอให้เอง
+// finally ใช้ล้างนาฬิกาทิ้งเสมอ ไม่ว่าคำขอจะสำเร็จหรือพลาด
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -29,12 +44,12 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
 };
 
 const UpdateModel = ({ navigation }) => {
-    const [songList, setSongList] = useState([]); // [{ newsong_id, newsong_name, newsong_artist }, ...]
-    const [loaded, setLoaded] = useState(false); // true หลังโหลดเสร็จครั้งแรก (กันขึ้น "ไม่พบ" ก่อนโหลดเสร็จ)
-    const [selectedIds, setSelectedIds] = useState([]); // newsong_id ที่ admin ติ๊กไว้ (เลือกได้หลายเพลง)
-    const [submitting, setSubmitting] = useState(false);
+    const [songList, setSongList] = useState([]);         // เพลงที่รอฝึกทั้งหมด (จาก Train_Song)
+    const [loaded, setLoaded] = useState(false);          // true เมื่อโหลดเสร็จ (กันขึ้น "ไม่มีเพลง" ก่อนโหลดเสร็จ)
+    const [selectedIds, setSelectedIds] = useState([]);   // newsong_id ของเพลงที่ติ๊กเลือก
+    const [submitting, setSubmitting] = useState(false);  // true ระหว่างกำลังฝึกโมเดล (ปุ่มจะกดซ้ำไม่ได้)
 
-    // โหลดรายชื่อเพลงทั้งหมดในตาราง Train_Song ตอนเปิดหน้านี้
+    // ตอนเปิดหน้า: โหลดรายการเพลงที่รอฝึกมาแสดง
     useEffect(() => {
         fetchWithTimeout(TRAIN_SONG_URL)
             .then((res) => res.json())
@@ -43,7 +58,9 @@ const UpdateModel = ({ navigation }) => {
             .finally(() => setLoaded(true));
     }, []);
 
-    // ติ๊ก/ถอนติ๊กเพลงในรายการ (เหมือน checkbox)
+    // ติ๊ก/ยกเลิกติ๊กเพลง (ทำงานเหมือน checkbox)
+    // ถ้าเพลงนี้ถูกเลือกอยู่แล้ว -> เอาออกจากรายการที่เลือก
+    // ถ้ายังไม่ถูกเลือก -> เพิ่มเข้าไป
     const toggleSong = (newsongId) => {
         setSelectedIds((prev) =>
             prev.includes(newsongId)
@@ -52,7 +69,10 @@ const UpdateModel = ({ navigation }) => {
         );
     };
 
-    // กดปุ่ม Enter: เอาเพลงที่ติ๊กไว้ไปเทรนเข้าโมเดล Ver.5
+    // กดปุ่ม Update Model:
+    //   - ถ้ายังไม่ได้เลือกเพลงเลย ให้เตือนแล้วหยุด
+    //   - ถ้าเลือกแล้ว ให้เด้งถามยืนยันก่อน เพราะเพลงที่ฝึกเสร็จจะถูกลบออกจากรายการนี้
+    //     กดยืนยันแล้วจึงเรียก submitUpdateModel
     const handleUpdateModel = () => {
         if (selectedIds.length === 0) {
             Alert.alert('แจ้งเตือน', 'กรุณาติ๊กเลือกเพลงอย่างน้อย 1 เพลงก่อน');
@@ -69,7 +89,13 @@ const UpdateModel = ({ navigation }) => {
         );
     };
 
-    // ถามผลจาก server เป็นระยะจนกว่างานจะจบ เน็ตสะดุดบางรอบไม่เป็นไร ถามรอบถัดไปได้
+    // รอจนกว่าการฝึกจะเสร็จ ด้วยการ "ถามซ้ำเป็นระยะ" (polling)
+    // เหตุผล: การฝึกอาจใช้เวลาหลายนาที ถ้ารอคำตอบในคำขอเดียว การเชื่อมต่อจะหลุดก่อน
+    // จึงให้ server เริ่มงานแล้วตอบ job_id กลับมาทันที จากนั้นแอปค่อยถามสถานะทุก 3 วินาที
+    //   - status ยังเป็น 'running' -> รอแล้วถามใหม่
+    //   - status เป็นอย่างอื่น ('success' หรือ 'error') -> คืนผลนั้นออกไป
+    //   - ถามแล้วเน็ตพลาด -> ไม่ยอมแพ้ ลองถามใหม่รอบหน้า
+    //   - เกิน 6 นาทียังไม่เสร็จ -> คืนผลเป็น error
     const waitForUpdateModel = async (jobId) => {
         const deadline = Date.now() + UPDATE_MODEL_MAX_WAIT_MS;
 
@@ -87,10 +113,16 @@ const UpdateModel = ({ navigation }) => {
         return { status: 'error', error: 'รอนานเกินไป กลับเข้าหน้านี้ใหม่เพื่อดูเพลงที่เหลือ' };
     };
 
+    // ส่งเพลงที่เลือกไปฝึกเข้าโมเดล
+    //   1) ส่ง newsong_ids ไปที่ Render (รอได้ 2 นาที เผื่อ server กำลังตื่นจากการพัก)
+    //   2) ถ้า server ตอบว่าเริ่มงานแล้ว ('started') ให้รอผลด้วย waitForUpdateModel
+    //      ถ้าตอบผลมาเลย (เช่น error ทันที) ก็ใช้ผลนั้น
+    //   3) ถ้าสำเร็จ: แจ้งจำนวนเพลงที่ฝึก, เอาเพลงที่เลือกออกจากรายการบนจอ, ล้างการติ๊ก
+    //      ถ้าไม่สำเร็จ: แจ้งข้อความ error จาก server
+    //   4) ไม่ว่าผลเป็นอะไร ให้ปุ่มกลับมากดได้ (finally)
     const submitUpdateModel = async () => {
         setSubmitting(true);
         try {
-            // เผื่อ Render เพิ่งตื่น (วัดจริงได้ถึง ~86 วิ)
             const res = await fetchWithTimeout(
                 UPDATE_MODEL_URL,
                 {
@@ -127,7 +159,6 @@ const UpdateModel = ({ navigation }) => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         style={styles.circleButton}
@@ -146,13 +177,9 @@ const UpdateModel = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Screen Title */}
                 <Text style={styles.screenTitle}>Update Model</Text>
 
-                {/* White Container */}
                 <View style={styles.cardContainer}>
-                    {/* Song Checklist: ดึงมาจากตาราง Train_Song จริง ติ๊กเลือกได้หลายเพลง เลื่อนดูเพลงอื่นได้
-                        ถ้าไม่มีเพลงเลยให้ขึ้น "ไม่พบ" */}
                     {loaded && songList.length === 0 ? (
                         <Text style={styles.notFoundText}>ไม่พบเพลงในระบบ</Text>
                     ) : (
@@ -166,15 +193,12 @@ const UpdateModel = ({ navigation }) => {
                                         activeOpacity={0.7}
                                         onPress={() => toggleSong(item.newsong_id)}
                                     >
-                                        {/* Placeholder Box for Image */}
                                         <View style={styles.imagePlaceholder} />
 
-                                        {/* Song Title */}
                                         <Text style={styles.songTitle} numberOfLines={2}>
                                             {item.newsong_artist} - {item.newsong_name}
                                         </Text>
 
-                                        {/* Checkbox */}
                                         <Feather
                                             name={isChecked ? 'check-square' : 'square'}
                                             size={22}
@@ -186,7 +210,6 @@ const UpdateModel = ({ navigation }) => {
                         </ScrollView>
                     )}
 
-                    {/* Enter Button: เอาเพลงที่ติ๊กไว้ไปเทรนเข้าโมเดล */}
                     <View style={styles.buttonContainer}>
                         {submitting && (
                             <Text style={styles.submittingText}>

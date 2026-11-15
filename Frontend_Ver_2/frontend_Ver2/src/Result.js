@@ -14,28 +14,34 @@ import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import { recordHistory } from '../lib/history';
 
-const TRENDING_INCREMENT_URL = 'https://lyriseek-api-database.onrender.com/trending_song/increment'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
+// API บน Render สำหรับ +1 ยอดฟังของเพลง (ใช้ทำสถิติเพลงยอดนิยมในหน้า MostSearch ของแอดมิน)
+const TRENDING_INCREMENT_URL = 'https://lyriseek-api-database.onrender.com/trending_song/increment';
 
+// หน้าผลการค้นหา: แสดงรายการเพลงที่ค้นเจอ ให้ผู้ใช้กดเลือกไปฟังบน YouTube
+// ข้อมูลเพลงไม่ได้โหลดในหน้านี้เอง แต่หน้า Homeuser ค้นหาเสร็จแล้วส่งมาให้ทาง route.params.results
 const Result = ({ navigation, route }) => {
-    // State ready for future database / search query results
+    // resultsList = รายการเพลงที่จะแสดง ถ้าไม่มีผลส่งมาให้เป็นรายการว่าง (กันแอปพัง)
+    // แต่ละเพลงมีหน้าตาประมาณ { id, title, artist, image_link, youtube_link }
     const [resultsList, setResultsList] = useState(route?.params?.results || []);
 
-    // กดการ์ดเพลง: ก่อนเด้งไป YouTube Music ให้รอนับเพลงนี้เข้า trending ให้เสร็จก่อน (ถ้ายังไม่เคย
-    // นับเพลงนี้เลยก็สร้างแถวใหม่ในตาราง Trending ให้ด้วย) แล้วค่อยเปิดลิงก์ YouTube ตามหลัง — ต้อง
-    // "รอ" ก่อนเปิด ไม่ใช่ยิงพร้อมกันแบบเดิม เพราะพอ Linking.openURL พาออกจากแอปไปแล้ว request ที่ยัง
-    // ค้างอยู่อาจถูกตัดกลางคันไม่เสร็จ (แอปถูกส่งไปพักหลังฉาก)
+    // ทำงานเมื่อผู้ใช้กดเพลงในรายการ
+    // ขั้นตอน:
+    //   1) ถ้าเพลงนี้ไม่มีลิงก์ YouTube ให้เด้งแจ้งเตือน แล้วหยุด
+    //   2) ถ้าเพลงมี id (คือมีอยู่ใน database) ให้ทำ 2 อย่างพร้อมกัน
+    //        - +1 ยอดฟังในตาราง trending_song
+    //        - บันทึกลงประวัติการฟังของผู้ใช้ (ตาราง history)
+    //      Promise.all = รอให้ทั้งสองอย่างเสร็จก่อน จะได้ไม่หลุดตอนแอปสลับไป YouTube
+    //   3) เปิดลิงก์เพลงในแอป YouTube Music (หรือเบราว์เซอร์ถ้าไม่มีแอป)
+    // ถ้าข้อ 2 พลาด จะแค่เขียน log ไว้ ผู้ใช้ยังได้ฟังเพลงตามปกติ
     const openYoutube = async (item) => {
         if (!item.youtube_link) {
             Alert.alert('ไม่มีลิงก์เพลงนี้', 'เพลงนี้ยังไม่มีลิงก์ YouTube ในระบบ');
             return;
         }
 
-        // item.id มีค่าก็ต่อเมื่อรู้ song_id จริงจาก database เท่านั้น (ดู Homeuser.js) ถ้าไม่รู้ก็ข้ามทั้ง
-        // การนับ trending และการบันทึก history (ตาราง history ต้องมี song_id จริง)
         if (item.id) {
             const countTrending = fetch(`${TRENDING_INCREMENT_URL}?song_id=${item.id}`, { method: 'POST' })
                 .catch((err) => console.log('นับเพลงเข้า trending ไม่สำเร็จ:', err));
-            // ยิงพร้อมกันแล้วรอให้เสร็จทั้งคู่ก่อนเปิดลิงก์ ไม่สำเร็จก็ยังเปิด YouTube ต่อได้ตามปกติ
             await Promise.all([countTrending, recordHistory(item.id)]);
         }
 
@@ -44,8 +50,7 @@ const Result = ({ navigation, route }) => {
         );
     };
 
-    // การ์ดเพลง 1 ใบ (แยกออกมาให้ FlatList เรียกใช้ทีละใบ — FlatList จะ render แค่การ์ดที่
-    // อยู่บนจอจริงๆ เท่านั้น ไม่ใช่ทุกใบพร้อมกันทีเดียวแบบ ScrollView+map เดิม ผลลัพธ์เยอะแค่ไหนก็ไม่ค้าง)
+    // บอก FlatList ว่าเพลงแต่ละเพลงต้องวาดเป็นการ์ดหน้าตาแบบไหน กดการ์ดแล้วเรียก openYoutube
     const renderSongCard = ({ item }) => (
         <TouchableOpacity
             style={styles.card}
@@ -80,7 +85,6 @@ const Result = ({ navigation, route }) => {
         <SafeAreaView style={styles.container}>
             <StatusBar style="dark" />
 
-            {/* Header (Back button on top left, Avatar on top right) */}
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backButton}
@@ -99,7 +103,6 @@ const Result = ({ navigation, route }) => {
                 </TouchableOpacity>
             </View>
 
-            {/* Results List */}
             <FlatList
                 data={resultsList}
                 keyExtractor={(item, index) => String(item.id ?? index)}

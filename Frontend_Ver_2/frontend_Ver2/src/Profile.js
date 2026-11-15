@@ -13,20 +13,34 @@ import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 
+// หน้าโปรไฟล์ของผู้ใช้ทั่วไป: แสดงชื่อ อีเมล ป้าย role และปุ่มออกจากระบบ
+// (การทำงานเหมือนหน้า AdminProfile แต่ค่าเริ่มต้นเป็นผู้ใช้ทั่วไป)
 const Profile = ({ navigation, route }) => {
+    // ข้อมูลโปรไฟล์ที่แสดงบนจอ เริ่มจากค่าที่หน้าก่อนหน้าส่งมา (ถ้ามี)
+    // แล้วจะถูกแทนด้วยข้อมูลจริงจาก Supabase เมื่อโหลดเสร็จ
     const [profile, setProfile] = useState({
         username: route?.params?.username || '',
         email: '',
         userId: route?.params?.userId || '',
         role: 'user',
     });
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(true); // true ระหว่างโหลด ใช้โชว์วงกลมหมุน
 
+    // โหลดข้อมูลผู้ใช้ที่ล็อกอินอยู่ มี 3 ขั้น:
+    //   1) ถาม Supabase Auth ว่าตอนนี้ใครล็อกอินอยู่ (getUser) ถ้าไม่มีใครล็อกอินก็หยุด
+    //   2) อ่านแถวของคนนั้นในตาราง users (ค้นด้วย users_id = id ของบัญชี)
+    //      error รหัส PGRST116 แปลว่า "ไม่เจอแถว" ไม่ถือว่าผิดพลาด
+    //      (เช่น ผู้ใช้ที่ล็อกอินด้วย Google ครั้งแรกอาจยังไม่มีแถวในตาราง)
+    //   3) เลือกชื่อที่จะแสดง โดยไล่หาตามลำดับ ถ้าอันแรกไม่มีค่อยใช้อันถัดไป:
+    //        username ในตาราง users
+    //        -> username ที่กรอกตอนสมัคร (user_metadata)
+    //        -> ชื่อจาก Google/Facebook (full_name หรือ name)
+    //        -> ส่วนหน้า @ ของอีเมล
+    //        -> คำว่า 'User'
     const loadUserProfile = useCallback(async () => {
         try {
             setLoading(true);
 
-            // 1. ดึงข้อมูล User จาก Supabase Auth
             const {
                 data: { user },
                 error: authError,
@@ -38,7 +52,6 @@ const Profile = ({ navigation, route }) => {
                 return;
             }
 
-            // 2. ดึงข้อมูล Profile เพิ่มเติมจากตาราง public.users
             const { data: dbUser, error: dbError } = await supabase
                 .from('users')
                 .select('*')
@@ -49,7 +62,6 @@ const Profile = ({ navigation, route }) => {
                 console.log('Error fetching user profile from DB:', dbError.message);
             }
 
-            // กำหนดค่า username จาก DB หรือ User Metadata
             const resolvedUsername =
                 dbUser?.username ||
                 user.user_metadata?.username ||
@@ -71,10 +83,17 @@ const Profile = ({ navigation, route }) => {
         }
     }, []);
 
+    // เรียกโหลดโปรไฟล์ 1 ครั้งตอนเปิดหน้านี้
     useEffect(() => {
         loadUserProfile();
     }, [loadUserProfile]);
 
+    // กดปุ่มออกจากระบบ:
+    //   1) เด้งกล่องถามยืนยันก่อน (กดยกเลิกได้)
+    //   2) ถ้ายืนยัน ให้ Supabase ลบ session ที่จำไว้ในเครื่อง (signOut)
+    //   3) ล้างประวัติการเปลี่ยนหน้าทั้งหมด แล้วไปหน้า Login (navigation.reset)
+    //      ทำให้กดย้อนกลับเข้าแอปโดยไม่ล็อกอินไม่ได้
+    // ถ้า signOut พลาด ก็ยังพาไปหน้า Login อยู่ดี
     const handleLogout = () => {
         Alert.alert(
             'ออกจากระบบ',
@@ -111,7 +130,6 @@ const Profile = ({ navigation, route }) => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         style={styles.backButton}
@@ -133,7 +151,6 @@ const Profile = ({ navigation, route }) => {
                     </View>
                 ) : (
                     <>
-                        {/* Avatar & User Header Card */}
                         <View style={styles.profileCard}>
                             <View style={styles.avatarWrapper}>
                                 <View style={styles.avatarCircle}>
@@ -141,7 +158,6 @@ const Profile = ({ navigation, route }) => {
                                 </View>
                             </View>
 
-                            {/* แสดงชื่อของ User */}
                             <Text style={styles.usernameText}>
                                 {profile.username || 'User'}
                             </Text>
@@ -157,9 +173,6 @@ const Profile = ({ navigation, route }) => {
                             </View>
                         </View>
 
-
-
-                        {/* Logout Button */}
                         <TouchableOpacity
                             style={styles.logoutButton}
                             activeOpacity={0.8}

@@ -16,15 +16,22 @@ import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 
+// หน้ายืนยันรหัส OTP (ขั้นที่ 2 ของการสมัครสมาชิก)
+// หลังกดสมัครในหน้า Register, Supabase จะส่งรหัส OTP ไปที่อีเมล
+// ผู้ใช้เอารหัสนั้นมากรอกที่หน้านี้ เพื่อพิสูจน์ว่าเป็นเจ้าของอีเมลจริง
+// หมายเหตุ: รหัส OTP ถูกสร้าง เก็บ และตรวจโดย Supabase ทั้งหมด แอปไม่ได้เก็บรหัสเอง
 const Otp = ({ navigation, route }) => {
-    const [otp, setOtp] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [otp, setOtp] = useState('');             // รหัสที่ผู้ใช้พิมพ์
+    const [loading, setLoading] = useState(false);  // true ระหว่างรอ Supabase ตอบ (กันกดซ้ำ)
 
+    // อีเมลและ username ที่หน้า Register ส่งต่อมาให้
     const email = route?.params?.email;
     const username = route?.params?.username;
 
-    // ตรวจสอบ OTP และบันทึกข้อมูลผู้ใช้
+    // กดปุ่ม Verify: ตรวจรหัส OTP แล้วบันทึกข้อมูลผู้ใช้ลงตาราง users
     const handleVerify = async () => {
+        // ตรวจเบื้องต้นก่อนส่งไป Supabase: ต้องมีอีเมล, ต้องกรอกรหัส, ต้องมี username
+        // ถ้าขาดอย่างใดอย่างหนึ่งให้แจ้งเตือนแล้วหยุด
         if (!email) {
             Alert.alert(
                 'เกิดข้อผิดพลาด',
@@ -49,7 +56,9 @@ const Otp = ({ navigation, route }) => {
         setLoading(true);
 
         try {
-            // 1. ตรวจสอบ OTP
+            // ขั้นที่ 1: ส่งอีเมล + รหัสไปให้ Supabase ตรวจ
+            // type: 'signup' = เป็นรหัสสำหรับยืนยันการสมัคร
+            // ถ้ารหัสถูก Supabase จะทำเครื่องหมายว่าอีเมลนี้ยืนยันแล้ว และคืนข้อมูลบัญชีมาให้
             const { data, error } = await supabase.auth.verifyOtp({
                 email: email.trim().toLowerCase(),
                 token: otp.trim(),
@@ -64,7 +73,7 @@ const Otp = ({ navigation, route }) => {
                 return;
             }
 
-            // 2. รับข้อมูลบัญชีจาก Supabase Auth
+            // ขั้นที่ 2: เอาข้อมูลบัญชีที่ Supabase ส่งกลับมา (มี id และ email)
             const user = data.user;
 
             if (!user) {
@@ -75,7 +84,10 @@ const Otp = ({ navigation, route }) => {
                 return;
             }
 
-            // 3. บันทึกข้อมูลลง public.users
+            // ขั้นที่ 3: บันทึกผู้ใช้ลงตาราง users (users_id, username, email)
+            // upsert = ถ้ายังไม่มีแถวของ users_id นี้ให้เพิ่มใหม่ ถ้ามีแล้วให้อัปเดตทับ
+            // ช่วยกันปัญหาแถวซ้ำ ถ้าผู้ใช้กดยืนยันซ้ำหลายครั้ง
+            // role กับ ban ไม่ได้ส่งไป จึงใช้ค่าเริ่มต้นของตาราง (role = 'user', ban = false)
             const { error: profileError } = await supabase
                 .from('users')
                 .upsert(
@@ -99,7 +111,10 @@ const Otp = ({ navigation, route }) => {
                 return;
             }
 
-            // 4. บันทึกข้อมูลสำเร็จแล้วจึงไปหน้า Login
+            // ขั้นที่ 4: สมัครสำเร็จ
+            // ตอน verifyOtp ผ่าน Supabase จะล็อกอินให้อัตโนมัติ
+            // เราสั่ง signOut ก่อน เพื่อให้ผู้ใช้ไปล็อกอินเองที่หน้า Login
+            // (หน้า Login เป็นที่ตรวจ role และสถานะ ban ก่อนพาเข้าแอป)
             Alert.alert(
                 'สำเร็จ',
                 'ยืนยัน Email และสมัครสมาชิกเรียบร้อยแล้ว',
@@ -107,8 +122,6 @@ const Otp = ({ navigation, route }) => {
                     {
                         text: 'ตกลง',
                         onPress: async () => {
-                            // ออกจาก Session หลังสมัคร
-                            // เพื่อให้ผู้ใช้ Login จากหน้า Login อีกครั้ง
                             await supabase.auth.signOut();
                             navigation?.navigate('Login');
                         },
@@ -127,7 +140,9 @@ const Otp = ({ navigation, route }) => {
         }
     };
 
-    // ส่ง OTP ใหม่
+    // กด "resend OTP": ขอให้ Supabase ส่งรหัสใหม่ไปที่อีเมลเดิม
+    // ใช้ตอนรหัสเดิมหมดอายุหรือไม่ได้รับอีเมล
+    // ส่งสำเร็จแล้วล้างช่องรหัสให้ว่าง เพื่อให้กรอกรหัสใหม่
     const handleResend = async () => {
         if (!email) {
             Alert.alert('เกิดข้อผิดพลาด', 'ไม่พบ Email');

@@ -26,7 +26,14 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import { recordHistory } from '../lib/history';
 
-// ตั้งค่าการอัดเสียงให้รองรับ Google Speech-to-Text (คัดลอกมาจากฟีเจอร์ไมค์ของเพื่อน)
+// ===================== ตั้งค่าการอัดเสียง =====================
+// ฟีเจอร์ค้นหาด้วยเสียง: ผู้ใช้กดไมค์แล้วร้อง/พูดเนื้อเพลง -> อัดเป็นไฟล์เสียง
+// -> ส่งไปให้ Google Speech-to-Text แปลงเป็นข้อความ -> เอาข้อความไปใส่ช่องค้นหา
+//
+// ตั้งค่าไฟล์เสียงให้ตรงกับรูปแบบที่ Google รับได้ โดยแยกตามระบบมือถือ:
+//   iOS     -> ไฟล์ .wav แบบ LINEAR16 (เสียงไม่บีบอัด 16 บิต)
+//   Android -> ไฟล์ .amr แบบ AMR-WB (บีบอัดแล้ว ไฟล์เล็ก) เพราะ Android อัด .wav โดยตรงไม่ได้
+// ทั้งสองแบบใช้ 16000 Hz และเสียงช่องเดียว (mono) ซึ่งพอสำหรับเสียงพูด และไฟล์ไม่ใหญ่
 const RECORDING_OPTIONS =
     Platform.OS === 'ios'
         ? {
@@ -54,26 +61,45 @@ const RECORDING_OPTIONS =
             },
         };
 
-// อัดเสียงได้นานสุดกี่มิลลิวินาที (Google รับได้ไม่เกิน 60 วินาที เผื่อไว้ 5 วินาที)
+// อัดเสียงได้นานสุด 55 วินาที แล้วจะหยุดเอง
+// เพราะ Google Speech-to-Text แบบส่งไฟล์ครั้งเดียวรับเสียงได้ไม่เกิน 1 นาที (เผื่อไว้ 5 วินาที)
 const MAX_RECORDING_MS = 55000;
 
+// บอก Google ว่าไฟล์เสียงที่ส่งไปเป็นรูปแบบไหน (ต้องตรงกับ RECORDING_OPTIONS ด้านบน)
 const GOOGLE_AUDIO_CONFIG =
     Platform.OS === 'ios'
         ? { encoding: 'LINEAR16', sampleRateHertz: 16000 }
         : { encoding: 'AMR_WB', sampleRateHertz: 16000 };
 
-const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง (ส่งกลับมาเป็น genre_id + genre_name)
-const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood'; // ⚠️ IP เดียวกับ GENRE_URL (ส่งกลับมาเป็น mood_id + mood_name)
-const SONG_BY_FILTER_URL = 'https://lyriseek-api-database.onrender.com/Song/by_filter'; // ⚠️ IP เดียวกับ GENRE_URL (Backend_Database/main.py พอร์ต 8000) กรองทั้ง genre และ mood
-const SEARCH_URL = 'https://sompon-dev--lyriseek-search-web.us-east.modal.run/search'; // Ver.5/API.py deploy อยู่บน Modal (ดู Ver.5/modal_app.py)
-const SONG_BY_NAMES_URL = 'https://lyriseek-api-database.onrender.com/Song/by_names'; // ⚠️ IP เดียวกับ GENRE_URL
-const RECOMMENDED_URL = 'https://lyriseek-api-database.onrender.com/trending_song/recommended'; // ⚠️ IP เดียวกับ GENRE_URL (เพลงที่แอดมินกด Add ไว้ใน MostSearch.js)
-const TRENDING_INCREMENT_URL = 'https://lyriseek-api-database.onrender.com/trending_song/increment'; // ⚠️ IP เดียวกับ GENRE_URL
+// ===================== ที่อยู่ API =====================
+// API บน Render (ข้อมูลเพลงในฐานข้อมูล)
+const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre';                   // รายการแนวเพลง
+const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood';                     // รายการอารมณ์เพลง
+const SONG_BY_FILTER_URL = 'https://lyriseek-api-database.onrender.com/Song/by_filter'; // หาเพลงตาม genre/mood ที่เลือก
+// API บน Modal (โมเดลค้นหาเพลงจากเนื้อร้อง: TF-IDF 80% + Dense 20%)
+const SEARCH_URL = 'https://sompon-dev--lyriseek-search-web.us-east.modal.run/search';
+// API บน Render (ต่อ)
+const SONG_BY_NAMES_URL = 'https://lyriseek-api-database.onrender.com/Song/by_names';             // หาข้อมูลเพลงจากชื่อ
+const RECOMMENDED_URL = 'https://lyriseek-api-database.onrender.com/trending_song/recommended';    // เพลงแนะนำ (For You)
+const TRENDING_INCREMENT_URL = 'https://lyriseek-api-database.onrender.com/trending_song/increment'; // +1 ยอดฟัง
 
-// เก็บแค่ไทย/อังกฤษ/ตัวเลข ให้ "Big Ass" กับ "bigass" เทียบกันได้ (หลักการเดียวกับ _norm ใน Link_Fetcher/Links.py)
+// ===================== ฟังก์ชันช่วยจับคู่ชื่อศิลปิน =====================
+// ปัญหาที่ต้องแก้: โมเดลค้นหา (Modal) รู้แค่ "ชื่อเพลง + ชื่อศิลปิน" ไม่รู้ song_id หรือลิงก์ YouTube
+// เราจึงต้องเอาชื่อเพลงไปหาในฐานข้อมูลอีกที แต่ชื่อเพลงซ้ำกันได้ (คนละศิลปินร้องเพลงชื่อเดียวกัน)
+// และชื่อศิลปินในสองที่อาจเขียนไม่เหมือนกันเป๊ะ เช่น "Bodyslam" กับ "BODYSLAM (บอดี้สแลม)"
+// ฟังก์ชัน 4 ตัวด้านล่างช่วยตัดสินว่า "เป็นศิลปินคนเดียวกันไหม"
+
+// ทำชื่อให้อยู่ในรูปเดียวกันก่อนเทียบ: ตัวพิมพ์เล็กทั้งหมด และลบทุกอย่างที่ไม่ใช่ตัวเลข อังกฤษ หรือไทย
+// (ช่องว่าง วงเล็บ ขีด จุด ถูกลบหมด) เช่น "Am Fine!" -> "amfine"
+// ช่วง ฀-๿ คือช่วงตัวอักษรไทยทั้งหมดใน Unicode
 const normalizeName = (text) => (text || '').toLowerCase().replace(/[^0-9a-z฀-๿]+/g, '');
 
-// ชื่อศิลปินบางแถวเขียน 2 ภาษาในวงเล็บ เช่น "บอดี้สแลม (Bodyslam)" จึงแยกเป็นหลายชื่อให้เทียบได้ทุกแบบ
+// สร้าง "ชื่อเรียกทั้งหมด" ของศิลปิน 1 คน เพื่อเอาไปเทียบ
+// เช่น "Bodyslam (บอดี้สแลม)" จะได้ 3 ชื่อ:
+//   1) ชื่อเต็ม                    -> "bodyslamบอดี้สแลม"
+//   2) ชื่อที่ตัดส่วนในวงเล็บออก   -> "bodyslam"
+//   3) ชื่อที่อยู่ในวงเล็บ          -> "บอดี้สแลม"
+// ชื่อที่สั้นกว่า 2 ตัวอักษรจะถูกตัดทิ้ง เพราะสั้นเกินไปจนไปตรงกับชื่อคนอื่นมั่ว
 const artistAliases = (artist) => {
     const inParens = (artist || '').match(/\(([^)]*)\)/g) || [];
     return [artist, (artist || '').replace(/\(.*?\)/g, ''), ...inParens.map((p) => p.slice(1, -1))]
@@ -81,11 +107,17 @@ const artistAliases = (artist) => {
         .filter((name) => name.length >= 2);
 };
 
+// ตัดสินว่าศิลปิน a กับ b เป็นคนเดียวกันไหม
+// ถือว่าใช่ ถ้ามีชื่อเรียกคู่ใดคู่หนึ่งที่ชื่อหนึ่งอยู่ในอีกชื่อหนึ่ง
+// เช่น "bodyslam" อยู่ใน "bodyslamบอดี้สแลม" -> ถือเป็นคนเดียวกัน
 const isSameArtist = (a, b) =>
     artistAliases(a).some((x) => artistAliases(b).some((y) => x.includes(y) || y.includes(x)));
 
-// เลือกแถวใน DB ที่ศิลปินตรงกับผลจากโมเดล ถ้าไม่มีแถวไหนตรงเลยไม่เดา (ไม่งั้นจะเปิดเพลงของศิลปินอื่น)
-// ยกเว้นมีแถวเดียวที่ไม่ได้กรอกศิลปินไว้ ให้ใช้แถวนั้นตามเดิม
+// จากเพลงทั้งหมดในฐานข้อมูลที่ชื่อตรงกัน (rows) เลือกแถวที่เป็นของศิลปินคนนี้
+//   - ไม่มีแถวเลย -> ไม่เจอ (undefined)
+//   - มีแถวที่ศิลปินตรงกัน -> ใช้แถวนั้น
+//   - ไม่มีแถวไหนตรง แต่มีอยู่แถวเดียวและแถวนั้นไม่ได้ระบุศิลปิน -> ใช้แถวนั้น (น่าจะเป็นเพลงเดียวกัน)
+//   - นอกนั้น -> ไม่เจอ (ไม่เดา เพราะอาจเปิดเพลงผิดคน)
 const findSongRow = (rows, artist) => {
     if (!rows || rows.length === 0) return undefined;
     const matched = rows.find((row) => isSameArtist(row.Artist, artist));
@@ -93,24 +125,31 @@ const findSongRow = (rows, artist) => {
     return rows.length === 1 && !rows[0].Artist ? rows[0] : undefined;
 };
 
+// หน้าแรกของผู้ใช้ทั่วไป หาเพลงได้ 3 ทาง:
+//   1) พิมพ์เนื้อเพลงที่จำได้ แล้วกดค้นหา        -> handleSearchSubmit (ใช้โมเดลบน Modal)
+//   2) กดไมค์แล้วร้อง/พูดเนื้อเพลง               -> startRecording / stopRecording แปลงเสียงเป็นข้อความ
+//   3) เลือกแนวเพลง (genre) / อารมณ์เพลง (mood)  -> handleApplyPress (กรองจากฐานข้อมูล)
+// และมีส่วน "For You" แสดงเพลงแนะนำที่แอดมินตั้งไว้ (หรือที่ระบบเลือกให้อัตโนมัติ)
 const Homeuser = ({ navigation }) => {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [showFilters, setShowFilters] = useState(false);
-    const [genreList, setGenreList] = useState([]); // [{ genre_id, genre_name }, ...]
-    const [genreSearch, setGenreSearch] = useState('');
-    const [selectedGenres, setSelectedGenres] = useState([]); // เก็บ genre_id ที่ถูกติ๊กไว้ (เหมือน checkbox)
-    const [moodList, setMoodList] = useState([]); // [{ mood_id, mood_name }, ...]
-    const [moodSearch, setMoodSearch] = useState('');
-    const [selectedMoods, setSelectedMoods] = useState([]); // เก็บ mood_id ที่ถูกติ๊กไว้ (เหมือน checkbox)
-    const [loadingSongs, setLoadingSongs] = useState(false); // true ระหว่างกำลังดึงเพลงตาม genre ที่เลือก (โชว์หน้า loading)
-    const [isRecording, setIsRecording] = useState(false);
-    const [isTranscribing, setIsTranscribing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');       // ข้อความในช่องค้นหา (พิมพ์เอง หรือได้จากเสียง)
+    const [showFilters, setShowFilters] = useState(false);    // แผงตัวกรอง genre/mood เปิดอยู่ไหม
+    const [genreList, setGenreList] = useState([]);           // แนวเพลงทั้งหมดในระบบ
+    const [genreSearch, setGenreSearch] = useState('');       // คำค้นในช่องค้นหาแนวเพลง
+    const [selectedGenres, setSelectedGenres] = useState([]); // genre_id ที่ติ๊กเลือก
+    const [moodList, setMoodList] = useState([]);             // อารมณ์เพลงทั้งหมดในระบบ
+    const [moodSearch, setMoodSearch] = useState('');         // คำค้นในช่องค้นหาอารมณ์เพลง
+    const [selectedMoods, setSelectedMoods] = useState([]);   // mood_id ที่ติ๊กเลือก
+    const [loadingSongs, setLoadingSongs] = useState(false);  // true ระหว่างรอผลค้นหา (โชว์วงกลมหมุน)
+    const [isRecording, setIsRecording] = useState(false);    // true ระหว่างกำลังอัดเสียง
+    const [isTranscribing, setIsTranscribing] = useState(false); // true ระหว่างรอ Google แปลงเสียงเป็นข้อความ
 
-    const [forYouList, setForYouList] = useState([]); // เพลงที่แอดมินตั้งเป็นเพลงแนะนำไว้ (trend_add = true)
+    const [forYouList, setForYouList] = useState([]);         // เพลงแนะนำในส่วน For You
 
+    // ตัวอัดเสียงของ expo-audio ตั้งค่าตาม RECORDING_OPTIONS
     const recorder = useAudioRecorder(RECORDING_OPTIONS);
 
-    // โหลดเพลงแนะนำ ("For You") ตอนเปิดหน้านี้
+    // ตอนเปิดหน้า: โหลดเพลงแนะนำ (For You)
+    // server จะส่งเพลงที่แอดมินติ๊กไว้มาให้ หรือถ้าเปิดโหมดอัตโนมัติอยู่ จะส่งเพลงที่ระบบเลือกจากสถิติ
     useEffect(() => {
         fetch(RECOMMENDED_URL)
             .then((res) => res.json())
@@ -118,8 +157,10 @@ const Homeuser = ({ navigation }) => {
             .catch((err) => console.log('โหลดเพลงแนะนำไม่สำเร็จ:', err));
     }, []);
 
-    // กดการ์ดเพลงใน For You: นับเข้า trending ก่อนแล้วค่อยเปิด YouTube Music (เหมือน openYoutube ใน Result.js)
-    // ต้องรอให้นับเสร็จก่อนเปิดลิงก์ เพราะพอ Linking.openURL พาออกจากแอปแล้ว request ที่ค้างอยู่อาจถูกตัดกลางคัน
+    // กดเพลงในส่วน For You (ทำงานแบบเดียวกับกดเพลงในหน้า Result)
+    //   1) ไม่มีลิงก์ YouTube -> แจ้งเตือนแล้วหยุด
+    //   2) ทำ 2 อย่างพร้อมกันแล้วรอให้เสร็จ: +1 ยอดฟัง (trending_song) และบันทึกประวัติการฟัง
+    //   3) เปิดเพลงใน YouTube
     const openRecommendedSong = async (song) => {
         if (!song.youtube_link) {
             Alert.alert('ไม่มีลิงก์เพลงนี้', 'เพลงนี้ยังไม่มีลิงก์ YouTube ในระบบ');
@@ -133,7 +174,12 @@ const Homeuser = ({ navigation }) => {
         );
     };
 
-    // เริ่มอัดเสียง (กดไมค์ครั้งแรก) — ของเพื่อน คัดลอกมาทั้งหมด
+    // เริ่มอัดเสียง
+    //   1) ขออนุญาตใช้ไมโครโฟน ถ้าผู้ใช้ไม่อนุญาตให้แจ้งเตือนแล้วหยุด
+    //   2) ตั้งโหมดเสียงของเครื่องให้อัดได้
+    //      playsInSilentMode = อัดได้แม้ iPhone เปิดโหมดเงียบอยู่
+    //   3) เตรียมไฟล์ แล้วเริ่มอัด
+    //   4) ตั้ง isRecording = true -> ปุ่มไมค์เปลี่ยนหน้าตา และนาฬิกา 55 วินาทีเริ่มนับ (ดู useEffect ด้านล่าง)
     const startRecording = async () => {
         try {
             const permission = await requestRecordingPermissionsAsync();
@@ -151,8 +197,18 @@ const Homeuser = ({ navigation }) => {
         }
     };
 
-    // หยุดอัดเสียง (กดไมค์ครั้งที่สอง) แล้วส่งไฟล์เสียงไปแปลงเป็นข้อความผ่าน Google Speech-to-Text
-    // ได้คำมาแล้วใส่ลงช่อง search ตรงๆ (ใช้ searchQuery เดียวกับที่พิมพ์เอง ไม่ต้องมี state แยก)
+    // หยุดอัดเสียง แล้วแปลงเสียงเป็นข้อความ
+    //   1) หยุดอัด แล้วปิดโหมดอัดเสียงของเครื่อง
+    //   2) อ่านไฟล์เสียงที่อัดได้ แปลงเป็นข้อความแบบ base64
+    //      (base64 = วิธีเขียนข้อมูลไฟล์เป็นตัวอักษร เพื่อใส่ไปในคำขอแบบ JSON ได้)
+    //   3) อ่าน API key ของ Google จากไฟล์ .env ถ้าไม่มีให้แจ้งเตือน
+    //   4) ส่งเสียงไปให้ Google Speech-to-Text แปลง โดยระบุว่าเป็นภาษาไทย (th-TH)
+    //   5) อ่านผล:
+    //        - Google ตอบ error -> แสดงข้อความ error
+    //        - ได้ข้อความ -> Google อาจแบ่งเสียงยาวเป็นหลายช่วง (results)
+    //          เราเอาคำตอบที่มั่นใจที่สุดของแต่ละช่วง (alternatives[0]) มาต่อกันด้วยช่องว่าง
+    //          แล้วใส่ลงช่องค้นหา (ผู้ใช้ตรวจหรือแก้ได้ก่อนกดค้นหา)
+    //        - ไม่ได้ข้อความเลย -> แจ้งว่าไม่พบเสียงพูด
     const stopRecording = async () => {
         setIsRecording(false);
         setIsTranscribing(true);
@@ -190,8 +246,6 @@ const Homeuser = ({ navigation }) => {
             if (data.error) {
                 Alert.alert('Google API Error', data.error.message);
             } else if (data.results?.length > 0) {
-                // พูดยาวหรือมีช่วงหยุด Google จะแบ่งผลเป็นหลายท่อน (results[0], results[1], ...)
-                // ต้องเอาทุกท่อนมาต่อกัน ไม่งั้นได้แค่ท่อนแรก แล้วคำค้นสั้นลงจนหาเพลงที่ถูกได้ยากขึ้น
                 const transcript = data.results
                     .map((r) => r.alternatives?.[0]?.transcript?.trim() || '')
                     .filter(Boolean)
@@ -212,15 +266,18 @@ const Homeuser = ({ navigation }) => {
         }
     };
 
-    // หยุดอัดเองเมื่อครบ MAX_RECORDING_MS: speech:recognize ของ Google รับเสียงได้ไม่เกิน 1 นาที
-    // ถ้าเกินจะ error ทั้งก้อน — ถ้ากดหยุดเองก่อน isRecording จะเป็น false แล้ว timer นี้ถูกล้างทิ้ง
+    // หยุดอัดเสียงอัตโนมัติเมื่อครบ 55 วินาที
+    // ทำงานทุกครั้งที่ isRecording เปลี่ยน:
+    //   - เริ่มอัด (true) -> ตั้งนาฬิกา 55 วินาที ครบแล้วเรียก stopRecording
+    //   - ผู้ใช้กดหยุดเองก่อน (false) -> คำสั่ง return จะยกเลิกนาฬิกาที่ตั้งไว้ ไม่ให้หยุดซ้ำ
     useEffect(() => {
         if (!isRecording) return;
         const timerId = setTimeout(stopRecording, MAX_RECORDING_MS);
         return () => clearTimeout(timerId);
     }, [isRecording]);
 
-    // กดปุ่มไมค์: ยังไม่ได้อัด -> เริ่มอัด, กำลังอัดอยู่ -> หยุดอัดแล้วแปลงเสียงเป็นข้อความ
+    // กดปุ่มไมค์: ถ้ากำลังอัดอยู่ให้หยุด ถ้ายังไม่อัดให้เริ่มอัด
+    // ระหว่างที่ Google กำลังแปลงเสียงอยู่ กดปุ่มไมค์จะไม่มีผล
     const handleMicPress = () => {
         if (isTranscribing) return;
         if (isRecording) {
@@ -230,7 +287,9 @@ const Homeuser = ({ navigation }) => {
         }
     };
 
-    // กดปุ่ม Filter แล้วเปิด/ปิด panel เหมือนเดิม + ดึง list genre และ mood ทั้งหมดจาก server มาโชว์
+    // กดปุ่มตัวกรอง: เปิด/ปิดแผงเลือก genre และ mood
+    // แล้วโหลดรายการ genre และ mood ล่าสุดจาก server ทุกครั้งที่กด
+    // (ถ้าแอดมินเพิ่งเพิ่มหมวดใหม่ ผู้ใช้จะเห็นทันที)
     const handleFilterPress = () => {
         setShowFilters(!showFilters);
         fetch(GENRE_URL)
@@ -243,12 +302,19 @@ const Homeuser = ({ navigation }) => {
             .catch((err) => console.log('โหลด mood ไม่สำเร็จ:', err));
     };
 
-    // กดปุ่ม genre แต่ละอัน (เหมือน checkbox): ติ๊ก/ถอนติ๊ก แล้ว log รายชื่อ + genre_id ที่เลือกออก terminal
+    // ติ๊ก/ยกเลิกติ๊กแนวเพลง (ทำงานเหมือน checkbox)
+    //   - ติ๊กอยู่แล้ว -> เอา genre_id นี้ออกจากรายการที่เลือก
+    //   - ยังไม่ติ๊ก   -> เพิ่ม genre_id นี้เข้าไป
+    // ส่วน console.log ด้านล่างใช้ดูใน terminal ตอนทดสอบว่าเลือกอะไรไว้บ้าง (ไม่มีผลกับหน้าจอ)
     const toggleGenre = (genre) => {
         const isChecked = selectedGenres.includes(genre.genre_id);
-        const updatedSelectedGenres = isChecked
-            ? selectedGenres.filter((id) => id !== genre.genre_id)
-            : [...selectedGenres, genre.genre_id];
+        let updatedSelectedGenres;
+
+        if (isChecked) {
+            updatedSelectedGenres = selectedGenres.filter((id) => id !== genre.genre_id);
+        } else {
+            updatedSelectedGenres = [...selectedGenres, genre.genre_id];
+        }
 
         setSelectedGenres(updatedSelectedGenres);
 
@@ -265,7 +331,7 @@ const Homeuser = ({ navigation }) => {
         );
     };
 
-    // กดปุ่ม mood แต่ละอัน (เหมือน checkbox): หลักการเดียวกับ toggleGenre เป๊ะๆ
+    // ติ๊ก/ยกเลิกติ๊กอารมณ์เพลง (ทำงานแบบเดียวกับ toggleGenre)
     const toggleMood = (mood) => {
         const isChecked = selectedMoods.includes(mood.mood_id);
         const updatedSelectedMoods = isChecked
@@ -287,22 +353,21 @@ const Homeuser = ({ navigation }) => {
         );
     };
 
-    // กดปุ่ม apply: ดึงเพลงตาม genre ที่ติ๊กไว้จาก server ก่อน (โชว์ loading ไว้ระหว่างรอ)
-    // แล้วค่อยไปหน้า Result พร้อมส่งรายชื่อเพลงที่ได้ไปด้วย (ถ้าไม่มีเพลงเลยก็ส่ง list ว่างไป
-    // ให้หน้า Result.js เป็นคนแสดงว่า "ไม่พบ")
+    // กดปุ่ม Apply: หาเพลงตามแนวเพลง/อารมณ์เพลงที่เลือก (หาเพลงทางที่ 3)
+    //   1) ตั้งเวลาหมดอายุ 30 วินาที (server บน Render อาจกำลังตื่นจากการพัก)
+    //   2) ส่ง id ที่เลือกไปเป็นข้อความคั่นด้วยจุลภาค เช่น genre_ids=1,3&mood_ids=2
+    //      server จะคืนเฉพาะเพลงที่ตรงกับ "ทุก" genre และ "ทุก" mood ที่ติ๊กไว้
+    //      (หมวดไหนไม่ได้ติ๊กเลย หมวดนั้นจะไม่ถูกใช้กรอง)
+    //   3) แปลงข้อมูลเพลงให้อยู่ในรูปที่หน้า Result ใช้ { id, title, artist, youtube_link, image_link }
+    //   4) ไปหน้า Result พร้อมรายการเพลง
+    // ถ้าพลาดหรือหมดเวลา ก็ยังไปหน้า Result แต่รายการว่าง (หน้า Result จะแสดงว่าไม่พบเพลง)
     const handleApplyPress = async () => {
         setLoadingSongs(true);
 
-        // ตั้งเวลารอ server สูงสุด 30 วินาที ถ้า server ไม่ตอบเลยก็ยกเลิก request ทิ้ง
-        // (ไม่งั้นถ้า server เงียบไปเฉยๆ เช่น IP ผิด/server ไม่ได้รัน หน้า loading จะค้างตลอดไป)
-        // เดิมตั้งไว้ 10 วิ แต่ backend อยู่บน Render free tier ซึ่ง "หลับ" หลังไม่มีคนเรียก 15 นาที
-        // แล้วตื่นช้า (วัดจริงได้สูงสุด ~86 วิ) ทำให้ request แรกหลัง idle โดน abort ทั้งที่ server
-        // กำลังตอบอยู่ — ขยายเป็น 30 วิ (คู่กับ keep-alive ping ที่กันไม่ให้หลับบ่อย ดู Test/)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
         try {
-            // เพลงต้องตรงทุก genre และทุก mood ที่ติ๊กไว้ (ดู /Song/by_filter ใน Backend_Database/main.py)
             const genreIdsParam = selectedGenres.join(',');
             const moodIdsParam = selectedMoods.join(',');
             const res = await fetch(`${SONG_BY_FILTER_URL}?genre_ids=${genreIdsParam}&mood_ids=${moodIdsParam}`, {
@@ -329,16 +394,27 @@ const Homeuser = ({ navigation }) => {
         }
     };
 
-    // กด enter ในช่อง search: เอาคำค้นหาไปถามโมเดล Ver.5 (ค้นด้วยความหมาย ไม่ใช่แค่ชื่อเพลงตรงเป๊ะ)
-    // ตรรกะเหมือน handleApplyPress เป๊ะๆ (โชว์ loading, ตั้ง timeout กันค้าง, แปลงผลลัพธ์ก่อนส่งไปหน้า Result)
+    // กดค้นหา: ค้นเพลงจากเนื้อร้องที่พิมพ์ (หาเพลงทางที่ 1 และ 2) เป็นฟังก์ชันหลักของแอป
+    // มี 4 ขั้น:
+    //   ขั้น 1) ส่งข้อความไปให้โมเดลค้นหาบน Modal
+    //           โมเดลคืนรายการเพลงที่ใกล้เคียงที่สุด เรียงจากคะแนนสูงไปต่ำ (มีแค่ชื่อเพลง + ศิลปิน)
+    //   ขั้น 2) เอาชื่อเพลงทั้งหมดไปถาม Render (/Song/by_names) เพื่อเอา song_id, ลิงก์ YouTube, รูปปก
+    //           จัดกลุ่มผลลัพธ์ตามชื่อเพลง (songsByName) เพราะชื่อเดียวอาจมีหลายเพลง (คนละศิลปิน)
+    //           ถ้าขั้นนี้พลาด ยังแสดงผลได้ แค่ไม่มีลิงก์และรูป
+    //   ขั้น 3) จับคู่ผลจากโมเดลกับแถวในฐานข้อมูล ด้วย findSongRow (เทียบชื่อศิลปิน)
+    //           และตัดเพลงซ้ำออก: ใช้ song_id เป็นตัวระบุ ถ้าหาไม่เจอใช้ชื่อเพลง + ชื่อศิลปินแทน
+    //           Set = กล่องที่จำว่าเจอเพลงไหนไปแล้ว ถ้าเจอซ้ำให้ข้าม
+    //           ลำดับยังคงเรียงตามคะแนนจากโมเดลเหมือนเดิม
+    //   ขั้น 4) ไปหน้า Result พร้อมรายการเพลง
+    // ตั้งเวลาหมดอายุไว้ 60 วินาที เพราะ Modal ปิดตัวเองตอนไม่มีคนใช้
+    // ครั้งแรกที่ถูกปลุก (cold start) ใช้เวลาประมาณ 20-30 วินาทีกว่าจะพร้อม
+    // ถ้าพลาดหรือหมดเวลา จะไปหน้า Result แบบรายการว่าง
     const handleSearchSubmit = async () => {
         const query = searchQuery.trim();
         if (!query) return;
 
         setLoadingSongs(true);
 
-        // โมเดลค้นหา (Ver.5) อยู่บน Modal ซึ่ง scale-to-zero วัดจริง cold start ได้ ~24 วิ และมีรอบที่เกิน 30 วิ
-        // จนขึ้น "ไม่พบเพลง" ทั้งที่โมเดลแค่กำลังตื่น จึงรอได้นานกว่า handleApplyPress ด้านบน
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
 
@@ -352,9 +428,6 @@ const Homeuser = ({ navigation }) => {
             const json = await res.json();
             const matches = json.results || [];
 
-            // โมเดล Ver.5 รู้แค่ song_name/artist ไม่รู้ song_id/youtube_link เพราะไม่เชื่อมกับ
-            // database เลย — เอาชื่อเพลงที่เจอไปถาม /Song/by_names เพื่อหา song_id/youtube_link จริง
-            // ชื่อเพลงซ้ำกันคนละศิลปินได้ จึงเก็บทุกแถวของชื่อนั้นไว้ แล้วเลือกแถวที่ศิลปินตรงด้านล่าง
             const songsByName = {};
             try {
                 const namesRes = await fetch(SONG_BY_NAMES_URL, {
@@ -371,8 +444,6 @@ const Homeuser = ({ navigation }) => {
                 console.log('หา song_id/youtube_link จากชื่อเพลงไม่สำเร็จ:', err);
             }
 
-            // ถ้าโมเดลเจอเพลงเดียวกันซ้ำ (เช่นชื่อศิลปินสะกด 2 แบบ) จะได้แถวเดียวกันใน DB ทำให้การ์ดซ้ำ
-            // และ React เตือน duplicate key — เก็บการ์ดละ 1 ใบต่อแถวใน DB (หรือต่อชื่อเพลง+ศิลปินถ้าไม่เจอแถว)
             const seenSongs = new Set();
             const results = [];
             matches.forEach((song) => {
@@ -383,8 +454,6 @@ const Homeuser = ({ navigation }) => {
                 if (seenSongs.has(songKey)) return;
                 seenSongs.add(songKey);
 
-                // id ต้องเป็น song_id จริงจาก DB เท่านั้น ถ้าไม่เจอให้เป็น undefined (ไม่ใช้ index
-                // แทน) เพราะ Result.js จะเอา id นี้ไปนับ trending — ถ้าใช้ index ปลอมๆ อาจไปนับผิดเพลง
                 results.push({
                     id: matchedSong ? matchedSong.song_id : undefined,
                     title: song.song_name,
@@ -411,7 +480,6 @@ const Homeuser = ({ navigation }) => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         activeOpacity={0.7}
@@ -429,12 +497,10 @@ const Homeuser = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* App Title */}
                 <Text style={styles.appTitle}>
                     Lyri<Text style={styles.appTitleHighlight}>Seek</Text>
                 </Text>
 
-                {/* For You Section */}
                 <View style={styles.forYouContainer}>
                     <Text style={styles.forYouTitle}>For You</Text>
 
@@ -463,7 +529,6 @@ const Homeuser = ({ navigation }) => {
                                 </TouchableOpacity>
                             ))
                         ) : (
-                            /* Placeholder UI when waiting for DB */
                             <>
                                 <TouchableOpacity
                                     style={styles.songItem}
@@ -491,7 +556,6 @@ const Homeuser = ({ navigation }) => {
                     </View>
                 </View>
 
-                {/* Search & Filter Section */}
                 <View style={styles.searchSection}>
                     <View style={styles.searchBar}>
                         <Feather name="search" size={22} color="#C24A3B" style={styles.searchIcon} />
@@ -506,7 +570,6 @@ const Homeuser = ({ navigation }) => {
                                 onSubmitEditing={handleSearchSubmit}
                             />
                             
-                            {/*<Text style={styles.searchSubtext}>lyrics/genre/mood</Text>*/}
                         </View>
                         <TouchableOpacity
                             activeOpacity={0.7}
@@ -526,7 +589,6 @@ const Homeuser = ({ navigation }) => {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Filter Toggle Button */}
                     <TouchableOpacity
                         style={[styles.filterButton, showFilters && styles.filterButtonActive]}
                         activeOpacity={0.8}
@@ -536,8 +598,6 @@ const Homeuser = ({ navigation }) => {
                         <Text style={styles.filterText}>FILTERS</Text>
                     </TouchableOpacity>
 
-                    {/* Collapsible Filter Panel: แสดงปุ่ม mood และ genre ที่ดึงมาจาก server แยกหัวข้อกัน เป็นแบบ checkbox (ติ๊กได้)
-                        เรียงจากแนวที่มีเพลงเยอะสุดไปน้อยสุด (เรียงมาจาก backend แล้ว ฝั่งนี้แค่กรองด้วยช่อง search) */}
                     {showFilters && (
                         <View style={styles.filterPanel}>
                             <Text style={styles.filterSectionTitle}>Mood</Text>
@@ -634,7 +694,6 @@ const Homeuser = ({ navigation }) => {
                 </View>
             </ScrollView>
 
-            {/* หน้า Loading แบบวงกลมหมุนๆ: โชว์ทับทั้งจอระหว่างรอดึงเพลงตาม genre ที่เลือก */}
             {loadingSongs && (
                 <View style={styles.loadingOverlay}>
                     <ActivityIndicator size="large" color="#C24A3B" />

@@ -11,6 +11,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 
+// หน้าแรกของผู้ดูแลระบบ (แอดมิน) จะมาถึงหน้านี้เมื่อ Login แล้วตาราง users บอกว่า role = 'admin'
+// หน้านี้ไม่มีการโหลดข้อมูลเอง ทำหน้าที่เป็น "เมนู" พาไปหน้าจัดการต่างๆ เมื่อกดการ์ด:
+//   - ไอคอนคนมุมขวาบน  -> AdminProfile  ดูโปรไฟล์แอดมินและออกจากระบบ
+//   - Add Songs        -> AddSong       เพิ่มเพลงใหม่ลงฐานข้อมูล
+//   - Update Model     -> UpdateModel   เอาเพลงใหม่ไปฝึกเข้าโมเดลค้นหา
+//   - Add Category     -> AddCategory   เพิ่มแนวเพลง (genre) และอารมณ์เพลง (mood)
+//   - Most Search      -> MostSearch    ดูสถิติเพลงยอดนิยมและตั้งเพลงแนะนำ
+//   - Edit Song        -> EditAdmin     แก้ไขข้อมูลเพลง (ศิลปิน ลิงก์ YouTube แนวเพลง อารมณ์เพลง)
+//   - Search User      -> SearchUser    ดูรายชื่อผู้ใช้ทั้งหมด ระงับ/ปลดระงับ (ban) และลบบัญชี
+// หมายเหตุ: ช่องค้นหาในหน้านี้ เมื่อกด Enter จะเปิดหน้า Result เปล่าๆ (ไม่ได้ส่งคำค้นไปค้นจริง)
 const Homeadmin = ({ navigation }) => {
     return (
         <SafeAreaView style={styles.container}>
@@ -19,7 +29,6 @@ const Homeadmin = ({ navigation }) => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header Profile Icon */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         style={styles.profileButton}
@@ -30,14 +39,12 @@ const Homeadmin = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* App Title */}
                 <View style={styles.titleContainer}>
                     <Text style={styles.appTitle}>
                         Lyri<Text style={styles.appTitleHighlight}>Seek</Text>
                     </Text>
                 </View>
 
-                {/* Search Bar */}
                 <View style={styles.searchContainer}>
                     <View style={styles.searchBar}>
                         <Feather
@@ -56,11 +63,8 @@ const Homeadmin = ({ navigation }) => {
                     </View>
                 </View>
 
-                {/* 2x2 Grid Menu */}
                 <View style={styles.gridContainer}>
-                    {/* Row 1 */}
                     <View style={styles.gridRow}>
-                        {/* Add Song Card */}
                         <TouchableOpacity
                             style={[styles.card, styles.addSongCard]}
                             activeOpacity={0.8}
@@ -72,12 +76,11 @@ const Homeadmin = ({ navigation }) => {
                                 <Feather name="music" size={26} color="#FFFFFF" />
                             </View>
                             <View style={styles.cardFooter}>
-                                <Text style={styles.cardTitle}>Add Song</Text>
+                                <Text style={styles.cardTitle}>Add Songs</Text>
                                 <Feather name="chevron-right" size={24} color="#1E1E1E" />
                             </View>
                         </TouchableOpacity>
 
-                        {/* Update Model Card */}
                         <TouchableOpacity
                             style={[styles.card, styles.updateModelCard]}
                             activeOpacity={0.8}
@@ -99,9 +102,7 @@ const Homeadmin = ({ navigation }) => {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Row 2 */}
                     <View style={styles.gridRow}>
-                        {/* Add Category Card */}
                         <TouchableOpacity
                             style={[styles.card, styles.addCategoryCard]}
                             activeOpacity={0.8}
@@ -122,7 +123,6 @@ const Homeadmin = ({ navigation }) => {
                             </View>
                         </TouchableOpacity>
 
-                        {/* Most Search Card */}
                         <TouchableOpacity
                             style={[styles.card, styles.mostSearchCard]}
                             activeOpacity={0.8}
@@ -140,9 +140,7 @@ const Homeadmin = ({ navigation }) => {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Row 3 */}
                     <View style={styles.gridRow}>
-                        {/* Edit Song Card */}
                         <TouchableOpacity
                             style={[styles.card, styles.editSongCard]}
                             activeOpacity={0.8}
@@ -159,7 +157,6 @@ const Homeadmin = ({ navigation }) => {
                             </View>
                         </TouchableOpacity>
 
-                        {/* Search User Card */}
                         <TouchableOpacity
                             style={[styles.card, styles.searchUserCard]}
                             activeOpacity={0.8}

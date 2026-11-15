@@ -17,16 +17,28 @@ import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 
+// หน้าสมัครสมาชิก (ขั้นที่ 1 ของการสมัคร ขั้นที่ 2 คือหน้า Otp)
 const Register = ({ navigation }) => {
+    // ค่าที่ผู้ใช้พิมพ์ในแต่ละช่อง
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false); // true ระหว่างส่งข้อมูล (กันกดปุ่มซ้ำ)
 
+    // กดปุ่ม Create: ตรวจข้อมูล -> เช็กชื่อซ้ำ -> สร้างบัญชี -> ไปหน้ากรอก OTP
     const handleCreate = async () => {
+        // ตัดช่องว่างหน้า-หลังออก และทำอีเมลเป็นตัวพิมพ์เล็กทั้งหมด
+        // เพื่อให้ "A@Mail.com " กับ "a@mail.com" ถือเป็นอีเมลเดียวกัน
         const cleanUsername = username.trim();
         const cleanEmail = email.trim().toLowerCase();
+
+        // ===== ตรวจข้อมูลในเครื่องก่อน (ยังไม่ต้องติดต่อ server) =====
+        // ถ้าข้อไหนไม่ผ่านจะเด้งแจ้งเตือนแล้วหยุดทันที
+        //   - ต้องกรอก username และยาวไม่เกิน 25 ตัว (เท่ากับขนาดคอลัมน์ username ในตาราง users)
+        //   - ต้องกรอกอีเมล และรูปแบบต้องเป็น xxx@xxx.xxx (ตรวจด้วย emailRegex)
+        //   - รหัสผ่านอย่างน้อย 6 ตัว (ขั้นต่ำที่ Supabase กำหนด)
+        //   - รหัสผ่านกับช่องยืนยันรหัสต้องตรงกัน
 
         if (!cleanUsername) {
             Alert.alert('แจ้งเตือน', 'กรุณากรอก Username');
@@ -72,8 +84,11 @@ const Register = ({ navigation }) => {
         setLoading(true);
 
         try {
-            // เช็ก Username ซ้ำก่อนสร้างบัญชี: ใช้ฟังก์ชัน find_login_email ตัวเดียวกับหน้า Login
-            // (หา email จาก username) ถ้าหาเจอแปลว่ามีคนใช้ username นี้แล้ว
+            // ===== เช็กว่า username ถูกใช้ไปแล้วหรือยัง =====
+            // เรียกฟังก์ชัน find_login_email ที่เขียนไว้ใน Supabase (rpc = เรียกฟังก์ชันฝั่ง database)
+            // ฟังก์ชันนี้รับ username แล้วคืนอีเมลของเจ้าของชื่อนั้น (หน้า Login ก็ใช้ตัวเดียวกัน)
+            //   - ได้อีเมลกลับมา = มีคนใช้ชื่อนี้แล้ว -> แจ้งให้เปลี่ยนชื่อ
+            //   - ได้ค่าว่าง     = ชื่อนี้ยังว่าง สมัครต่อได้
             const { data: takenEmail, error: lookupError } =
                 await supabase.rpc('find_login_email', {
                     input_username: cleanUsername,
@@ -95,6 +110,10 @@ const Register = ({ navigation }) => {
                 return;
             }
 
+            // ===== สร้างบัญชีใน Supabase Auth =====
+            // Supabase เก็บอีเมลและรหัสผ่าน (เข้ารหัสแล้ว) ไว้เอง แล้วส่งรหัส OTP ไปที่อีเมล
+            // username ฝากไว้ใน options.data (user_metadata) ก่อน
+            // ยังไม่ได้บันทึกลงตาราง users ตรงนี้ จะบันทึกหลังยืนยัน OTP สำเร็จในหน้า Otp
             const { data, error } = await supabase.auth.signUp({
                 email: cleanEmail,
                 password: password,
@@ -118,8 +137,9 @@ const Register = ({ navigation }) => {
                 return;
             }
 
-            // Email ที่สมัครและยืนยันไปแล้ว Supabase จะไม่ตอบ error (กันคนเดาว่า email ไหนมีบัญชี)
-            // แต่ส่ง user ที่ identities เป็น list ว่างกลับมาแทน และไม่ส่ง OTP ไปให้
+            // กรณีอีเมลนี้เคยสมัครแล้ว Supabase จะไม่ตอบเป็น error (กันคนเดาว่าอีเมลไหนมีบัญชี)
+            // แต่จะส่ง user กลับมาโดยมี identities เป็นรายการว่าง และไม่ส่ง OTP ไปให้
+            // เราจึงเช็กตรงนี้เพื่อบอกผู้ใช้ว่าอีเมลนี้ถูกใช้แล้ว
             if (data.user.identities?.length === 0) {
                 Alert.alert(
                     'สมัครสมาชิกไม่สำเร็จ',
@@ -128,7 +148,8 @@ const Register = ({ navigation }) => {
                 return;
             }
 
-            // ส่งข้อมูลไปหน้า OTP
+            // ทุกอย่างผ่าน: ไปหน้ากรอก OTP พร้อมส่งอีเมลและ username ไปด้วย
+            // (หน้า Otp ต้องใช้อีเมลตอนตรวจรหัส และใช้ username ตอนบันทึกลงตาราง users)
             navigation.navigate('Otp', {
                 email: cleanEmail,
                 username: cleanUsername,
@@ -164,7 +185,6 @@ const Register = ({ navigation }) => {
                         </Text>
 
                         <View style={styles.formContainer}>
-                            {/* Username */}
                             <View style={styles.inputContainer}>
                                 <Feather
                                     name="user"
@@ -186,7 +206,6 @@ const Register = ({ navigation }) => {
                                 />
                             </View>
 
-                            {/* Email */}
                             <View style={styles.inputContainer}>
                                 <Feather
                                     name="mail"
@@ -208,7 +227,6 @@ const Register = ({ navigation }) => {
                                 />
                             </View>
 
-                            {/* Password */}
                             <View style={styles.inputContainer}>
                                 <Feather
                                     name="lock"
@@ -229,7 +247,6 @@ const Register = ({ navigation }) => {
                                 />
                             </View>
 
-                            {/* Confirm Password */}
                             <View style={styles.inputContainer}>
                                 <Feather
                                     name="lock"
@@ -250,7 +267,6 @@ const Register = ({ navigation }) => {
                                 />
                             </View>
 
-                            {/* Create Button */}
                             <TouchableOpacity
                                 style={[
                                     styles.createButton,

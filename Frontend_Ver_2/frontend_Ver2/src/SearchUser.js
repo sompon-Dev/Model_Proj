@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
     View,
@@ -14,18 +13,27 @@ import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 
+// หน้าจัดการผู้ใช้ (สำหรับแอดมิน): ดูรายชื่อผู้ใช้ทั้งหมด, ระงับ/ปลดระงับบัญชี, และลบบัญชี
+// ข้อมูลผู้ใช้อยู่ในตาราง users ของ Supabase (ไม่ใช่ database บน Render)
 const SearchUser = ({ navigation }) => {
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [errorMessage, setErrorMessage] = useState('');
+    const [users, setUsers] = useState([]);                 // รายชื่อผู้ใช้ทั้งหมด
+    const [loading, setLoading] = useState(true);           // true ระหว่างโหลดรายชื่อ
+    const [errorMessage, setErrorMessage] = useState('');   // ข้อความ error ที่จะแสดงบนจอ (ว่าง = ไม่มี error)
+    // users_id ของผู้ใช้ที่กำลังถูก ban หรือลบอยู่ (null = ไม่มี)
+    // ใช้ปิดปุ่มและโชว์วงกลมหมุนเฉพาะการ์ดของคนนั้น
     const [actionLoading, setActionLoading] = useState(null);
-    const [currentUserId, setCurrentUserId] = useState(null);
+    const [currentUserId, setCurrentUserId] = useState(null); // id ของแอดมินที่ล็อกอินอยู่ (กันแอดมินแบน/ลบตัวเอง)
 
+    // ตอนเปิดหน้า: โหลดรายชื่อผู้ใช้ 1 ครั้ง
     useEffect(() => {
         fetchUsers();
     }, []);
 
-    // Fetch all users
+    // โหลดรายชื่อผู้ใช้
+    //   1) ถาม Supabase ว่าใครล็อกอินอยู่ ถ้าไม่มีใครล็อกอินให้แสดง error
+    //   2) จำ id ของแอดมินคนนี้ไว้ (กันแบน/ลบตัวเอง)
+    //   3) อ่านตาราง users: เอาเฉพาะ users_id, username, email, ban แล้วเรียงตามชื่อ ก-ฮ / A-Z
+    // ถ้าขั้นไหนพลาด (throw) จะกระโดดไปที่ catch: แสดงข้อความ error และล้างรายชื่อ
     const fetchUsers = async () => {
         try {
             setLoading(true);
@@ -63,7 +71,12 @@ const SearchUser = ({ navigation }) => {
         }
     };
 
-    // Ban / Unban user
+    // กดปุ่ม Ban / Unban: สลับสถานะระงับบัญชีของผู้ใช้คนนี้
+    //   1) ถ้าเป็นบัญชีของแอดมินเอง ห้ามทำ
+    //   2) เด้งถามยืนยัน (ข้อความเปลี่ยนตามสถานะปัจจุบัน)
+    //   3) ถ้ายืนยัน ให้แก้คอลัมน์ ban ในตาราง users เป็นค่าตรงข้าม (true <-> false)
+    //   4) สำเร็จแล้วแก้สถานะของคนนั้นในรายการบนจอทันที โดยไม่ต้องโหลดรายชื่อใหม่ทั้งหมด
+    // ผลของการ ban: ครั้งหน้าที่ผู้ใช้คนนี้ล็อกอิน หน้า Login จะเห็นว่า ban = true แล้วไม่ให้เข้าแอป
     const handleToggleBan = (item) => {
         if (item.users_id === currentUserId) {
             Alert.alert(
@@ -128,7 +141,14 @@ const SearchUser = ({ navigation }) => {
         );
     };
 
-    // Delete user using Supabase Edge Function
+    // กดปุ่ม Delete: ลบบัญชีผู้ใช้ถาวร (ย้อนกลับไม่ได้)
+    //   1) ถ้าเป็นบัญชีของแอดมินเอง ห้ามลบ
+    //   2) เด้งถามยืนยันก่อน
+    //   3) เรียกฟังก์ชัน delete-user ที่อยู่บน Supabase (Edge Function)
+    //      เหตุที่ไม่ลบจากแอปตรงๆ: การลบบัญชีใน Supabase Auth ต้องใช้กุญแจระดับผู้ดูแล (service role)
+    //      ซึ่งห้ามใส่ไว้ในแอป จึงให้ฟังก์ชันฝั่ง server เป็นคนลบแทน
+    //   4) ถ้าฟังก์ชันตอบว่าไม่สำเร็จ ให้ถือเป็น error
+    //   5) สำเร็จแล้วเอาผู้ใช้คนนั้นออกจากรายการบนจอ
     const handleDeleteUser = (item) => {
         if (item.users_id === currentUserId) {
             Alert.alert(
@@ -153,7 +173,6 @@ const SearchUser = ({ navigation }) => {
                         try {
                             setActionLoading(item.users_id);
 
-                            // Call Edge Function
                             const { data, error } =
                                 await supabase.functions.invoke(
                                     'delete-user',
@@ -172,7 +191,6 @@ const SearchUser = ({ navigation }) => {
                                 );
                             }
 
-                            // Remove user from screen
                             setUsers(prevUsers =>
                                 prevUsers.filter(
                                     user =>
@@ -202,7 +220,9 @@ const SearchUser = ({ navigation }) => {
         );
     };
 
-    // Render user card
+    // วาดการ์ดของผู้ใช้ 1 คน
+    //   isBanned     = คนนี้ถูกระงับอยู่ไหม (ใช้เปลี่ยนป้ายสถานะและปุ่ม Ban/Unban)
+    //   isProcessing = กำลัง ban หรือลบคนนี้อยู่ไหม (ถ้าใช่ ปุ่มจะกดไม่ได้ชั่วคราว)
     const renderUser = ({ item }) => {
         const isBanned = item.ban === true;
         const isProcessing = actionLoading === item.users_id;
@@ -210,7 +230,6 @@ const SearchUser = ({ navigation }) => {
         return (
             <View style={styles.userCard}>
 
-                {/* User Information */}
                 <View style={styles.userInfoRow}>
                     <View style={styles.userIcon}>
                         <Feather
@@ -251,7 +270,6 @@ const SearchUser = ({ navigation }) => {
                     </View>
                 </View>
 
-                {/* Action Buttons */}
                 <View style={styles.actionContainer}>
 
                     <TouchableOpacity
@@ -329,7 +347,6 @@ const SearchUser = ({ navigation }) => {
         <SafeAreaView style={styles.container}>
             <StatusBar style="dark" />
 
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backButton}
@@ -359,14 +376,12 @@ const SearchUser = ({ navigation }) => {
                 </TouchableOpacity>
             </View>
 
-            {/* User Count */}
             <View style={styles.countContainer}>
                 <Text style={styles.countText}>
                     Total Users: {users.length}
                 </Text>
             </View>
 
-            {/* User List */}
             {loading ? (
                 <View style={styles.center}>
                     <ActivityIndicator

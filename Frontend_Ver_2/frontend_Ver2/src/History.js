@@ -16,14 +16,23 @@ import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { HISTORY_URL, getCurrentUserId, recordHistory } from '../lib/history';
 
+// รูปไอคอน YouTube Music ที่แสดงท้ายการ์ดเพลงแต่ละอัน
 const YT_ICON_URI = 'https://static.vecteezy.com/system/resources/previews/017/395/384/non_2x/youtube-music-icon-free-png.png';
 
+// หน้าประวัติการฟังเพลงของผู้ใช้ที่ล็อกอินอยู่
 const History = ({ navigation }) => {
-    const [historyList, setHistoryList] = useState([]); // เพลงละ 1 รายการ เรียงจากฟังล่าสุด (backend จัดให้แล้ว)
-    const [loading, setLoading] = useState(true);
-    const [loggedIn, setLoggedIn] = useState(true);
+    const [historyList, setHistoryList] = useState([]); // รายการเพลงที่เคยฟัง (ล่าสุดอยู่บนสุด ตามที่ server เรียงมา)
+    const [loading, setLoading] = useState(true);       // true ระหว่างกำลังโหลด ใช้โชว์วงกลมหมุน
+    const [loggedIn, setLoggedIn] = useState(true);     // false ถ้ายังไม่ได้ล็อกอิน จะได้บอกให้ไปล็อกอินก่อน
 
-    // โหลดใหม่ทุกครั้งที่กลับมาหน้านี้ (ไม่ใช่แค่ตอนเปิดครั้งแรก) เพลงที่เพิ่งฟังจาก Result/For You จะได้ขึ้นทันที
+    // โหลดประวัติใหม่ "ทุกครั้งที่เปิดหน้านี้" (useFocusEffect)
+    // ต่างจาก useEffect ปกติที่ทำแค่ครั้งแรก: ถ้าผู้ใช้ไปฟังเพลงหน้าอื่นแล้วกลับมา รายการจะอัปเดตเอง
+    // ขั้นตอน:
+    //   1) หา id ของผู้ใช้ ถ้าไม่ได้ล็อกอินให้แสดงข้อความ "กรุณาเข้าสู่ระบบ"
+    //   2) ขอประวัติของผู้ใช้คนนี้จาก server (GET /history?user_id=...)
+    //   3) เอาผลมาใส่ historyList เพื่อแสดงบนจอ
+    // ตัวแปร cancelled กันปัญหา: ถ้าผู้ใช้ออกจากหน้านี้ก่อนโหลดเสร็จ
+    // ผลที่มาถึงทีหลังจะไม่ถูกเอาไปใส่หน้าจอที่ปิดไปแล้ว
     useFocusEffect(
         useCallback(() => {
             let cancelled = false;
@@ -53,7 +62,12 @@ const History = ({ navigation }) => {
         }, [])
     );
 
-    // กดฟังซ้ำจากหน้านี้: บันทึกเป็น history แถวใหม่แต่ "ไม่" นับ trending แล้วย้ายเพลงขึ้นบนสุดทันที
+    // ทำงานเมื่อกดเพลงในประวัติ
+    //   1) ไม่มีลิงก์ YouTube ก็แจ้งเตือนแล้วหยุด
+    //   2) ย้ายเพลงนี้ขึ้นไปบนสุดของรายการทันที (ไม่ต้องรอโหลดใหม่)
+    //      โดยเอาเพลงนี้ไว้หน้าสุด แล้วตามด้วยเพลงอื่นที่ไม่ใช่เพลงนี้
+    //   3) บันทึกการฟังครั้งนี้ลงประวัติใน server
+    //   4) เปิดเพลงใน YouTube
     const openSong = async (item) => {
         if (!item.youtube_link) {
             Alert.alert('ไม่มีลิงก์เพลงนี้', 'เพลงนี้ยังไม่มีลิงก์ YouTube ในระบบ');
@@ -89,6 +103,7 @@ const History = ({ navigation }) => {
         </TouchableOpacity>
     );
 
+    // ข้อความที่แสดงตอนไม่มีเพลงในรายการ แยกตามสาเหตุ (ยังไม่ล็อกอิน หรือ ยังไม่เคยฟังเพลง)
     const emptyText = !loggedIn
         ? 'กรุณาเข้าสู่ระบบเพื่อดูประวัติการฟังเพลง'
         : 'ยังไม่มีประวัติการฟังเพลง';
@@ -97,7 +112,6 @@ const History = ({ navigation }) => {
         <SafeAreaView style={styles.container}>
             <StatusBar style="dark" />
 
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backButton}

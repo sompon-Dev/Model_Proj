@@ -12,22 +12,53 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const TRENDING_SONG_URL = 'https://lyriseek-api-database.onrender.com/trending_song'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
-const ADD_RECOMMEND_URL = 'https://lyriseek-api-database.onrender.com/trending_song/add_recommend'; // ⚠️ IP เดียวกับ TRENDING_SONG_URL
-const AUTO_RECOMMEND_URL = 'https://lyriseek-api-database.onrender.com/trending_song/auto_recommend'; // ⚠️ IP เดียวกับ TRENDING_SONG_URL
+// หน้าสถิติเพลงยอดนิยม (สำหรับแอดมิน) ทำได้ 3 อย่าง:
+//   1) ดูยอดฟังของแต่ละเพลง แยกตามช่วงเวลา ทั้งหมด / สัปดาห์ / เดือน / ปี
+//   2) ติ๊กเลือกเพลงแนะนำเอง (สูงสุด 2 เพลง) แล้วกด Add ไปแสดงในส่วน "For You" ของหน้าผู้ใช้
+//   3) เปิด Auto Recomend ให้ระบบเลือกเพลงแนะนำจากสถิติให้อัตโนมัติ
+// ยอดฟังมาจากตาราง trending_song ซึ่งจะ +1 ทุกครั้งที่ผู้ใช้กดเปิดเพลง
 
-const MAX_SELECT = 2; // ติ๊กเลือกเพลงแนะนำได้สูงสุดกี่เพลง
+// API อ่านเพลงและยอดฟังทั้งหมด
+const TRENDING_SONG_URL = 'https://lyriseek-api-database.onrender.com/trending_song';
+// API ตั้งเพลงที่เลือกให้เป็นเพลงแนะนำ
+const ADD_RECOMMEND_URL = 'https://lyriseek-api-database.onrender.com/trending_song/add_recommend';
+// API อ่าน (GET) และเปิด/ปิด (PUT) โหมดแนะนำอัตโนมัติ
+const AUTO_RECOMMEND_URL = 'https://lyriseek-api-database.onrender.com/trending_song/auto_recommend';
+
+// เลือกเพลงแนะนำได้สูงสุดกี่เพลง
+const MAX_SELECT = 2;
+
+// แท็บช่วงเวลาของสถิติ
+//   key    = ชื่อคอลัมน์ในตาราง trending_song ที่ใช้เรียงและแสดงยอด
+//   label  = ข้อความบนแท็บ
+//   suffix = คำต่อท้ายยอดฟังใต้ชื่อเพลง เช่น "ฟัง 12 ครั้ง (สัปดาห์นี้)"
+// ยอดรายสัปดาห์/เดือน/ปี จะถูก server รีเซ็ตเป็น 0 เมื่อขึ้นรอบใหม่
+const PERIODS = [
+    { key: 'trend_alltime', label: 'ทั้งหมด', suffix: 'ทั้งหมด' },
+    { key: 'trend_one_week', label: 'สัปดาห์', suffix: 'สัปดาห์นี้' },
+    { key: 'trend_one_month', label: 'เดือน', suffix: 'เดือนนี้' },
+    { key: 'trend_one_year', label: 'ปี', suffix: 'ปีนี้' },
+];
 
 const MostSearch = ({ navigation }) => {
-    const [mostSearchedSongs, setMostSearchedSongs] = useState([]); // [{ trend_song_id, song_id, trend_song_name, ... }, ...]
-    const [selectedIds, setSelectedIds] = useState([]);
-    const [loaded, setLoaded] = useState(false); // true หลังโหลดเสร็จครั้งแรก (กันขึ้น "ไม่พบ" ก่อนโหลดเสร็จ)
-    const [submitting, setSubmitting] = useState(false);
-    const [autoOn, setAutoOn] = useState(false); // ช่อง "Auto Recomend" ติ๊กอยู่ไหม (ค่าจริงเก็บใน DB ตาราง trend_setting)
-    const [autoIds, setAutoIds] = useState([]); // trend_song_id ที่ระบบเลือกให้อัตโนมัติ (ไว้ไฮไลต์ในลิสต์)
-    const [savingAuto, setSavingAuto] = useState(false);
+    const [mostSearchedSongs, setMostSearchedSongs] = useState([]); // เพลงทั้งหมดในตาราง trending_song พร้อมยอดฟัง
+    const [selectedIds, setSelectedIds] = useState([]);   // trend_song_id ของเพลงที่แอดมินติ๊กเลือกเอง
+    const [loaded, setLoaded] = useState(false);          // true เมื่อโหลดเสร็จ (กันขึ้น "ไม่พบ" ก่อนโหลดเสร็จ)
+    const [submitting, setSubmitting] = useState(false);  // true ระหว่างกด Add
+    const [autoOn, setAutoOn] = useState(false);          // โหมดแนะนำอัตโนมัติเปิดอยู่ไหม (ค่าจริงเก็บใน database)
+    const [autoIds, setAutoIds] = useState([]);           // เพลงที่ระบบเลือกให้ตอนโหมดอัตโนมัติเปิด (ไว้ไฮไลต์)
+    const [savingAuto, setSavingAuto] = useState(false);  // true ระหว่างกำลังบันทึกการเปิด/ปิดโหมดอัตโนมัติ
+    const [period, setPeriod] = useState(PERIODS[0]);     // แท็บช่วงเวลาที่เลือกอยู่ (เริ่มที่ "ทั้งหมด")
 
-    // โหลดรายชื่อเพลงทั้งหมดในตาราง trending_song + สถานะ Auto Recomend ตอนเปิดหน้านี้
+    // เรียงเพลงจากยอดฟังมากไปน้อย ตามช่วงเวลาของแท็บที่เลือก
+    // [...list] = ก๊อปรายการออกมาก่อนค่อยเรียง เพื่อไม่ให้ข้อมูลต้นฉบับใน state ถูกแก้
+    // (b - a) = เรียงจากมากไปน้อย, || 0 = ถ้าไม่มีค่าให้นับเป็น 0
+    // คำนวณใหม่ทุกครั้งที่เปลี่ยนแท็บ โดยไม่ต้องโหลดข้อมูลจาก server ใหม่
+    const sortedSongs = [...mostSearchedSongs].sort((a, b) => (b[period.key] || 0) - (a[period.key] || 0));
+
+    // ตอนเปิดหน้า: โหลดข้อมูล 2 อย่างพร้อมกัน
+    //   1) รายชื่อเพลงและยอดฟังทั้งหมด
+    //   2) สถานะโหมดแนะนำอัตโนมัติ (เปิดหรือปิด และเพลงไหนที่ระบบเลือกไว้)
     useEffect(() => {
         fetch(TRENDING_SONG_URL)
             .then((res) => res.json())
@@ -43,9 +74,10 @@ const MostSearch = ({ navigation }) => {
             .catch((err) => console.log('โหลดสถานะ Auto Recomend ไม่สำเร็จ:', err));
     }, []);
 
-    // กดช่อง "Auto Recomend": บันทึกลง DB ทันที ติ๊กอยู่ = For You เลือกเพลงจากสถิติเอง
-    // (เพลงที่ 1 จาก trend_one_month สูงสุด เพลงที่ 2 จาก trend_one_week สูงสุด ดู pick_auto_recommend ใน main.py)
-    // ระหว่างติ๊กอยู่จะเลือกเพลงเองไม่ได้ ต้องเอาติ๊กออกก่อนถึงกลับมาเลือกแบบ manual ได้
+    // กดช่อง Auto Recomend: สลับเปิด/ปิดโหมดแนะนำอัตโนมัติ และบันทึกลง database ทันที
+    // เมื่อเปิด server จะเลือกเพลงแนะนำให้เอง 2 เพลง:
+    //   เพลงที่ 1 = ยอดฟังรายเดือนสูงสุด, เพลงที่ 2 = ยอดฟังรายสัปดาห์สูงสุด
+    // ระหว่างที่โหมดนี้เปิด แอดมินจะติ๊กเลือกเพลงเองไม่ได้ ต้องปิดโหมดก่อน
     const toggleAuto = async () => {
         setSavingAuto(true);
         try {
@@ -69,7 +101,10 @@ const MostSearch = ({ navigation }) => {
         }
     };
 
-    // ติ๊ก/ถอนติ๊ก (เหมือน checkbox) — ติ๊กพร้อมกันได้สูงสุด MAX_SELECT เพลง
+    // ติ๊ก/ยกเลิกติ๊กเพลง (เลือกพร้อมกันได้สูงสุด MAX_SELECT เพลง)
+    //   - เพลงนี้ติ๊กอยู่แล้ว -> เอาติ๊กออก
+    //   - ติ๊กครบจำนวนสูงสุดแล้ว -> เตือนว่าเลือกเพิ่มไม่ได้
+    //   - นอกนั้น -> เพิ่มเพลงนี้เข้ารายการที่เลือก
     const toggleSelect = (id) => {
         if (selectedIds.includes(id)) {
             setSelectedIds(selectedIds.filter((item) => item !== id));
@@ -82,7 +117,10 @@ const MostSearch = ({ navigation }) => {
         setSelectedIds([...selectedIds, id]);
     };
 
-    // กดปุ่ม Add: ตั้งเพลงที่ติ๊กไว้ให้เป็นเพลงแนะนำ (trend_add = true) ไปโชว์ใน "For You" ของ Homeuser.js
+    // กดปุ่ม Add: ตั้งเพลงที่ติ๊กไว้ให้เป็นเพลงแนะนำ
+    // server จะล้างเพลงแนะนำเก่าทั้งหมดก่อน แล้วตั้ง trend_add = true ให้เพลงที่ส่งไป
+    // เพลงเหล่านี้จะไปแสดงในส่วน "For You" ของหน้า Homeuser
+    // สำเร็จแล้วพากลับไปหน้าเมนูแอดมิน
     const handleAddPress = async () => {
         if (selectedIds.length === 0) {
             Alert.alert('แจ้งเตือน', 'กรุณาติ๊กเลือกเพลงก่อน');
@@ -119,7 +157,6 @@ const MostSearch = ({ navigation }) => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         style={styles.circleButton}
@@ -138,12 +175,25 @@ const MostSearch = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Title */}
                 <Text style={styles.screenTitle}>Most searched songs</Text>
 
-                {/* White Container */}
+                <View style={styles.tabRow}>
+                    {PERIODS.map((p) => {
+                        const active = p.key === period.key;
+                        return (
+                            <TouchableOpacity
+                                key={p.key}
+                                style={[styles.tab, active && styles.tabActive]}
+                                activeOpacity={0.8}
+                                onPress={() => setPeriod(p)}
+                            >
+                                <Text style={[styles.tabText, active && styles.tabTextActive]}>{p.label}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
                 <View style={styles.cardContainer}>
-                    {/* ช่องติ๊ก Auto Recomend มุมขวาบน */}
                     <TouchableOpacity
                         style={styles.autoRow}
                         activeOpacity={0.7}
@@ -158,13 +208,11 @@ const MostSearch = ({ navigation }) => {
                         <Text style={styles.autoText}>{savingAuto ? '...' : 'Auto Recomend'}</Text>
                     </TouchableOpacity>
 
-                    {/* Song List: ดึงมาจากตาราง trending_song จริง ถ้าไม่มีเพลงเลยให้ขึ้น "ไม่พบ" */}
                     {loaded && mostSearchedSongs.length === 0 ? (
                         <Text style={styles.notFoundText}>ไม่พบเพลงใน trending</Text>
                     ) : (
                         <View style={styles.listContainer}>
-                            {mostSearchedSongs.map((item) => {
-                                // ติ๊ก Auto อยู่: โชว์เพลงที่ระบบเลือกให้ และกดเลือกเองไม่ได้
+                            {sortedSongs.map((item) => {
                                 const isSelected = autoOn
                                     ? autoIds.includes(item.trend_song_id)
                                     : selectedIds.includes(item.trend_song_id);
@@ -181,9 +229,14 @@ const MostSearch = ({ navigation }) => {
                                         ) : (
                                             <View style={styles.imagePlaceholder} />
                                         )}
-                                        <Text style={styles.songTitle} numberOfLines={2}>
-                                            {item.trend_song_name}
-                                        </Text>
+                                        <View style={styles.songInfo}>
+                                            <Text style={styles.songTitle} numberOfLines={2}>
+                                                {item.trend_song_name}
+                                            </Text>
+                                            <Text style={styles.songCount}>
+                                                ฟัง {(item[period.key] || 0).toLocaleString()} ครั้ง ({period.suffix})
+                                            </Text>
+                                        </View>
                                         <Feather
                                             name={isSelected ? 'check-square' : 'square'}
                                             size={22}
@@ -195,7 +248,6 @@ const MostSearch = ({ navigation }) => {
                         </View>
                     )}
 
-                    {/* Bottom Action Row */}
                     <View style={styles.bottomRow}>
                         <Text style={styles.recommendLabel}>add to recommend</Text>
                         <TouchableOpacity
@@ -301,8 +353,41 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         marginRight: 16,
     },
-    songTitle: {
+    tabRow: {
+        flexDirection: 'row',
+        backgroundColor: '#EEF0FB',
+        borderRadius: 14,
+        padding: 4,
+        marginBottom: 20,
+    },
+    tab: {
         flex: 1,
+        height: 38,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    tabActive: {
+        backgroundColor: '#98A6FE',
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    tabTextActive: {
+        color: '#FFFFFF',
+    },
+    songInfo: {
+        flex: 1,
+        marginRight: 8,
+    },
+    songCount: {
+        fontSize: 13,
+        color: '#556AB0',
+        marginTop: 2,
+    },
+    songTitle: {
         fontSize: 15,
         fontWeight: 'bold',
         color: '#111827',

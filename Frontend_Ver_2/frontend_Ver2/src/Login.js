@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
     View,
@@ -20,20 +19,41 @@ import { supabase } from '../lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 
+// ใช้กับการล็อกอินด้วย Google/Facebook บนเว็บ: เมื่อหน้าล็อกอินส่งผู้ใช้กลับมา
+// คำสั่งนี้จะปิดหน้าต่างล็อกอินที่เปิดค้างไว้ และส่งผลกลับให้แอป (บนมือถือไม่มีผลอะไร)
 WebBrowser.maybeCompleteAuthSession();
 
+// รูปโลโก้บนปุ่มล็อกอินด้วย Google และ Facebook
 const GOOGLE_LOGO_URI =
     'https://media.wired.com/photos/5926ffe47034dc5f91bed4e8/3:2/w_1920,c_limit/google-logo.jpg';
 
 const FACEBOOK_LOGO_URI =
     'https://1000logos.net/wp-content/uploads/2017/02/Facebook-Logosu.png';
 
+// หน้าเข้าสู่ระบบ (หน้าแรกของแอป) ล็อกอินได้ 3 วิธี:
+//   1) Username หรือ Email + รหัสผ่าน
+//   2) บัญชี Google
+//   3) บัญชี Facebook
+// ไม่ว่าวิธีไหน สุดท้ายจะมาจบที่ navigateByUserRole ซึ่งตรวจว่าถูกระงับบัญชีหรือไม่
+// แล้วพาไปหน้าแรกตาม role (admin -> Homeadmin, user -> Homeuser)
 const Login = ({ navigation }) => {
-    const [email, setEmail] = useState('');
+    const [email, setEmail] = useState('');        // ช่องแรก: พิมพ์ได้ทั้ง username และ email
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false); // true ระหว่างกำลังล็อกอิน (กันกดซ้ำ)
 
-    // ตรวจสอบสถานะ Ban และ Role ของ User
+    // อ่านข้อมูลผู้ใช้จากตาราง users แล้วตรวจสถานะการระงับบัญชี (ban)
+    // คืนค่าได้ 2 แบบ:
+    //   - ข้อมูลผู้ใช้ { role, username }  -> เข้าแอปได้
+    //   - false                            -> ถูกระงับบัญชี ห้ามเข้า
+    // ขั้นตอน:
+    //   1) หาแถวของผู้ใช้คนนี้ในตาราง users
+    //      .maybeSingle() = ได้ 1 แถว หรือไม่มีเลยก็ได้ (ไม่ถือว่าผิดพลาด)
+    //   2) ถ้าไม่มีแถว แปลว่าเป็นผู้ใช้ที่ล็อกอินด้วย Google/Facebook ครั้งแรก
+    //      (คนกลุ่มนี้ไม่ได้ผ่านหน้า Register/Otp จึงยังไม่มีแถวในตาราง)
+    //      -> สร้างแถวใหม่ให้ ใช้ชื่อจากบัญชี Google/Facebook หรือส่วนหน้า @ ของอีเมล
+    //      -> ให้เป็นผู้ใช้ทั่วไป (role = 'user')
+    //   3) ถ้า ban = true: ออกจากระบบทันที แล้วแจ้งว่าบัญชีถูกระงับ
+    //   4) นอกนั้นคืนข้อมูลผู้ใช้ออกไป
     const checkUserBan = async (userId) => {
         const { data: userData, error } = await supabase
             .from('users')
@@ -45,8 +65,6 @@ const Login = ({ navigation }) => {
             throw error;
         }
 
-        // ไม่มี trigger สร้างแถวใน users ให้อัตโนมัติ คนที่เข้าด้วย Google/Facebook จึงไม่มีแถว
-        // สร้างให้ตอนนี้เพื่อให้แอดมินเห็นในหน้า Search User ถ้าสร้างไม่ได้ก็ยังให้เข้าแบบผู้ใช้ทั่วไป
         if (!userData) {
             const { data: { user } } = await supabase.auth.getUser();
             const username =
@@ -63,7 +81,6 @@ const Login = ({ navigation }) => {
             return { role: 'user', username };
         }
 
-        // ถ้าถูกแบน ให้ Logout ทันที
         if (userData.ban === true) {
             await supabase.auth.signOut();
 
@@ -78,7 +95,13 @@ const Login = ({ navigation }) => {
         return userData;
     };
 
-    // ตรวจสอบ Ban ก่อนนำทางไปหน้า Home
+    // ขั้นสุดท้ายของการล็อกอินทุกวิธี: ตรวจบัญชีแล้วพาไปหน้าแรกตาม role
+    //   - ถูกระงับบัญชี (checkUserBan คืน false) -> อยู่หน้า Login ต่อ
+    //   - role = 'admin' -> ไปหน้า Homeadmin
+    //   - role อื่น      -> ไปหน้า Homeuser
+    // ใช้ navigation.reset แทน navigate: ล้างประวัติหน้าทิ้ง กดย้อนกลับแล้วจะไม่กลับมาหน้า Login
+    // ส่ง userId และ username ไปให้หน้าถัดไปใช้ด้วย
+    // ถ้าตรวจบัญชีพลาด (เช่น อ่านตาราง users ไม่ได้) ให้ออกจากระบบเพื่อความปลอดภัย แล้วแจ้ง error
     const navigateByUserRole = async (userId) => {
         try {
             const userData = await checkUserBan(userId);
@@ -87,7 +110,6 @@ const Login = ({ navigation }) => {
                 return;
             }
 
-            // ใช้ reset แทน navigate ไม่ให้ปุ่ม Back ที่หน้า Home ย้อนกลับมาหน้า Login
             navigation?.reset({
                 index: 0,
                 routes: [{
@@ -108,7 +130,15 @@ const Login = ({ navigation }) => {
         }
     };
 
-    // Email / Username Login
+    // กดปุ่ม Login (วิธีที่ 1: Username/Email + รหัสผ่าน)
+    //   1) ต้องกรอกทั้ง 2 ช่อง
+    //   2) ดูว่าช่องแรกเป็นอีเมลหรือ username (ตรวจรูปแบบ xxx@xxx.xxx)
+    //        - อีเมล    -> ใช้เลย (แปลงเป็นตัวพิมพ์เล็ก)
+    //        - username -> เรียกฟังก์ชัน find_login_email บน Supabase เพื่อแปลง username เป็นอีเมล
+    //                      เพราะ Supabase ล็อกอินด้วยอีเมลได้อย่างเดียว
+    //   3) ล็อกอินด้วยอีเมล + รหัสผ่าน (signInWithPassword)
+    //      ไม่ผ่านถ้ารหัสผิด หรือยังไม่ได้ยืนยันอีเมลด้วย OTP
+    //   4) ล็อกอินผ่านแล้ว ส่งต่อให้ navigateByUserRole ตรวจ ban และพาไปหน้าแรก
     const handleLogin = async () => {
         const input = email.trim();
 
@@ -177,7 +207,22 @@ const Login = ({ navigation }) => {
         }
     };
 
-    // Google Login
+    // กดปุ่ม Google (วิธีที่ 2: ล็อกอินผ่านบัญชี Google)
+    // หลักการ (OAuth): แอปไม่เห็นรหัสผ่าน Google ของผู้ใช้เลย
+    // ผู้ใช้ไปล็อกอินในหน้าของ Google เอง แล้ว Google ส่ง "บัตรผ่าน" กลับมาให้แอป
+    // ขั้นตอน:
+    //   1) สร้างที่อยู่สำหรับให้ Google ส่งผู้ใช้กลับเข้าแอป (redirectTo)
+    //      เช่น lyriseek://auth/callback
+    //   2) ขอลิงก์หน้าล็อกอิน Google จาก Supabase
+    //      skipBrowserRedirect: true = ขอแค่ลิงก์ เดี๋ยวแอปเปิดหน้าเว็บเอง
+    //      prompt: 'select_account'  = ให้ Google ถามทุกครั้งว่าจะใช้บัญชีไหน
+    //   3) เปิดหน้าเว็บล็อกอิน แล้วรอจนผู้ใช้ล็อกอินเสร็จและถูกส่งกลับมา
+    //   4) อ่านค่าที่ติดมากับลิงก์ขากลับ (ส่วนหลัง # หรือ ?) แล้วเปลี่ยนเป็น session ของ Supabase
+    //      ได้กลับมาได้ 2 แบบ ขึ้นกับการตั้งค่า:
+    //        - code                          -> ส่ง code ไปแลกเป็น session (exchangeCodeForSession)
+    //        - access_token + refresh_token  -> ตั้ง session จาก token ตรงๆ (setSession)
+    //   5) ถามว่าผู้ใช้คือใคร แล้วส่งต่อให้ navigateByUserRole
+    // ถ้าผู้ใช้กดปิดหน้าล็อกอินเอง (result.type ไม่ใช่ 'success') จะไม่ทำอะไรต่อ
     const handleGoogleLogin = async () => {
         setLoading(true);
 
@@ -194,7 +239,6 @@ const Login = ({ navigation }) => {
                 options: {
                     redirectTo,
                     skipBrowserRedirect: true,
-                    // ให้ Google ถามทุกครั้งว่าจะใช้บัญชีไหน ไม่เข้าบัญชีที่ค้างในเบราว์เซอร์เอง
                     queryParams: { prompt: 'select_account' },
                 },
             });
@@ -265,7 +309,9 @@ const Login = ({ navigation }) => {
         }
     };
 
-    // Facebook Login
+    // กดปุ่ม Facebook (วิธีที่ 3: ล็อกอินผ่านบัญชี Facebook)
+    // ทำงานเหมือน handleGoogleLogin ทุกขั้นตอน ต่างกันแค่ provider เป็น 'facebook'
+    // และไม่มีตัวเลือกให้เลือกบัญชีทุกครั้ง
     const handleFacebookLogin = async () => {
         setLoading(true);
 
@@ -366,7 +412,6 @@ const Login = ({ navigation }) => {
 
                     <View style={styles.formContainer}>
 
-                        {/* Username or Email */}
                         <View style={styles.inputContainer}>
                             <Feather
                                 name="user"
@@ -388,7 +433,6 @@ const Login = ({ navigation }) => {
                             />
                         </View>
 
-                        {/* Password */}
                         <View style={styles.inputContainer}>
                             <Feather
                                 name="lock"
@@ -409,7 +453,6 @@ const Login = ({ navigation }) => {
                             />
                         </View>
 
-                        {/* Login Button */}
                         <TouchableOpacity
                             style={[
                                 styles.loginButton,
@@ -424,7 +467,6 @@ const Login = ({ navigation }) => {
                             </Text>
                         </TouchableOpacity>
 
-                        {/* Sign up */}
                         <View style={styles.signupContainer}>
                             <Text style={styles.signupText}>
                                 Don't have an account?{' '}
@@ -439,10 +481,8 @@ const Login = ({ navigation }) => {
                             </Text>
                         </View>
 
-                        {/* Divider */}
                         <Text style={styles.orText}>Or</Text>
 
-                        {/* Google button */}
                         <TouchableOpacity
                             style={[
                                 styles.socialButton,
@@ -463,7 +503,6 @@ const Login = ({ navigation }) => {
                             </Text>
                         </TouchableOpacity>
 
-                        {/* Facebook button */}
                         <TouchableOpacity
                             style={[
                                 styles.socialButton,

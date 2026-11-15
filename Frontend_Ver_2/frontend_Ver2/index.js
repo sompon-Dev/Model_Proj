@@ -2,7 +2,6 @@ import { registerRootComponent } from 'expo';
 
 import App from './App';
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
+// จุดเริ่มต้นของแอป: บอก Expo ว่าให้เปิด App (ใน App.js) เป็นหน้าแรกสุด
+// ไม่ว่าจะเปิดในมือถือจริง, Expo Go หรือบนเว็บ ก็เริ่มจากบรรทัดนี้เสมอ
 registerRootComponent(App);

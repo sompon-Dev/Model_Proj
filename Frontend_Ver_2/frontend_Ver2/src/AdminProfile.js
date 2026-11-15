@@ -13,20 +13,36 @@ import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 
+// หน้าโปรไฟล์ของแอดมิน: แสดงชื่อ อีเมล ป้าย Admin และปุ่มออกจากระบบ
 const AdminProfile = ({ navigation, route }) => {
+    // ข้อมูลโปรไฟล์ที่แสดงบนจอ
+    // ถ้าหน้าก่อนหน้าส่ง username/userId มาให้ (route.params) จะใช้แสดงไปก่อนได้ทันที
+    // แล้วค่อยถูกแทนด้วยข้อมูลจริงจาก Supabase เมื่อโหลดเสร็จ
     const [profile, setProfile] = useState({
         username: route?.params?.username || '',
         email: '',
         userId: route?.params?.userId || '',
         role: 'admin',
     });
+    // โชว์ตัวโหลดเฉพาะตอนที่ยังไม่มีชื่อให้แสดงเลย (ถ้ามีชื่อส่งมาแล้วก็ไม่ต้องโชว์)
     const [loading, setLoading] = useState(!route?.params?.username);
 
+    // โหลดข้อมูลแอดมินที่ล็อกอินอยู่ มี 3 ขั้น:
+    //   1) ถาม Supabase Auth ว่าตอนนี้ใครล็อกอินอยู่ (getUser) ถ้าไม่มีใครล็อกอินก็หยุด
+    //   2) ไปอ่านแถวของคนนั้นในตาราง users (ค้นด้วย users_id = id ของบัญชี)
+    //      .single() = คาดว่าได้แถวเดียว
+    //      error รหัส PGRST116 แปลว่า "ไม่เจอแถว" ซึ่งไม่ถือว่าผิดพลาด เลยไม่ต้อง log
+    //   3) เลือกชื่อที่จะแสดง โดยไล่หาตามลำดับ ถ้าอันแรกไม่มีค่อยใช้อันถัดไป:
+    //        username ในตาราง users
+    //        -> username ที่กรอกตอนสมัคร (user_metadata)
+    //        -> ชื่อจาก Google/Facebook (full_name หรือ name)
+    //        -> ส่วนหน้า @ ของอีเมล
+    //        -> คำว่า 'Admin'
+    // useCallback ทำให้ฟังก์ชันนี้ถูกสร้างครั้งเดียว ไม่ถูกสร้างใหม่ทุกครั้งที่หน้าจอวาดใหม่
     const loadAdminProfile = useCallback(async () => {
         try {
             setLoading(true);
 
-            // 1. ดึงข้อมูล User จาก Supabase Auth
             const {
                 data: { user },
                 error: authError,
@@ -38,7 +54,6 @@ const AdminProfile = ({ navigation, route }) => {
                 return;
             }
 
-            // 2. ดึงข้อมูล Profile เพิ่มเติมจากตาราง public.users
             const { data: dbUser, error: dbError } = await supabase
                 .from('users')
                 .select('*')
@@ -70,10 +85,17 @@ const AdminProfile = ({ navigation, route }) => {
         }
     }, []);
 
+    // เรียกโหลดโปรไฟล์ 1 ครั้งตอนเปิดหน้านี้
     useEffect(() => {
         loadAdminProfile();
     }, [loadAdminProfile]);
 
+    // กดปุ่มออกจากระบบ:
+    //   1) เด้งกล่องถามยืนยันก่อน (กดยกเลิกได้)
+    //   2) ถ้ายืนยัน ให้ Supabase ลบ session ที่จำไว้ในเครื่อง (signOut)
+    //   3) ล้างประวัติการเปลี่ยนหน้าทั้งหมด แล้วไปหน้า Login (navigation.reset)
+    //      ทำให้กดย้อนกลับไปหน้าแอดมินไม่ได้อีก
+    // ถ้า signOut พลาด ก็ยังพาไปหน้า Login อยู่ดี ผู้ใช้จะได้ไม่ค้างอยู่หน้านี้
     const handleLogout = () => {
         Alert.alert(
             'ออกจากระบบ',
@@ -110,7 +132,6 @@ const AdminProfile = ({ navigation, route }) => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         style={styles.backButton}
@@ -132,7 +153,6 @@ const AdminProfile = ({ navigation, route }) => {
                     </View>
                 ) : (
                     <>
-                        {/* Profile Header Card */}
                         <View style={styles.profileCard}>
                             <View style={styles.avatarWrapper}>
                                 <View style={styles.avatarCircle}>
@@ -140,7 +160,6 @@ const AdminProfile = ({ navigation, route }) => {
                                 </View>
                             </View>
 
-                            {/* แสดงชื่อของ Admin */}
                             <Text style={styles.usernameText}>
                                 {profile.username || 'Admin'}
                             </Text>
@@ -154,7 +173,6 @@ const AdminProfile = ({ navigation, route }) => {
                             </View>
                         </View>
 
-                        {/* Logout Button */}
                         <TouchableOpacity
                             style={styles.logoutButton}
                             activeOpacity={0.8}

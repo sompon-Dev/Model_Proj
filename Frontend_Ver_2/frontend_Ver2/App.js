@@ -17,8 +17,16 @@ import AdminProfile from './src/AdminProfile';
 import EditAdmin from './src/EditAdmin';
 import SearchUser from './src/SearchUser';
 
+// Stack คือตัวจัดการ "การเปลี่ยนหน้า" ของแอป
+// ทำงานเหมือนกองไพ่: เปิดหน้าใหม่ (navigate) = วางไพ่ใบใหม่ทับด้านบน
+// กดย้อนกลับ (goBack) = หยิบไพ่ใบบนสุดออก แล้วกลับไปเห็นหน้าก่อนหน้า
 const Stack = createNativeStackNavigator();
 
+// App = โครงหลักของแอป ลงทะเบียนทุกหน้าไว้ที่นี่ที่เดียว
+// - name คือชื่อที่หน้าอื่นใช้เรียก เช่น navigation.navigate('Homeuser')
+// - component คือไฟล์หน้าจอที่จะเปิดเมื่อเรียกชื่อนั้น
+// - initialRouteName="Login" คือเปิดแอปมาเจอหน้า Login ก่อนเสมอ
+// - headerShown: false คือซ่อนแถบหัวข้อมาตรฐาน เพราะแต่ละหน้าทำปุ่มย้อนกลับเอง
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -92,4 +100,3 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-

@@ -13,10 +13,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre'; // ⚠️ เปลี่ยน IP เป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
-const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood'; // ⚠️ IP เดียวกับ GENRE_URL
+// หน้าเพิ่มหมวดหมู่ (สำหรับแอดมิน) มี 2 ช่องแยกกัน:
+//   - genre = แนวเพลง เช่น Pop, Rock  (บันทึกลงตาราง Genre)
+//   - mood  = อารมณ์เพลง เช่น เศร้า, สนุก (บันทึกลงตาราง Mood)
+// หมวดที่เพิ่มแล้วจะไปเป็นตัวเลือกในหน้า AddSong และตัวกรองในหน้า Homeuser
 
-// เรียก fetch พร้อม timeout กันหน้าค้างถ้า server ไม่ตอบ (เหมือนที่ทำไว้ใน Homeuser.js/AddSong.js)
+// API อ่าน (GET) และเพิ่ม (POST) แนวเพลง / อารมณ์เพลง
+const GENRE_URL = 'https://lyriseek-api-database.onrender.com/Genre';
+const MOOD_URL = 'https://lyriseek-api-database.onrender.com/Mood';
+
+// fetch แบบมีเวลาหมดอายุ (ค่าเริ่มต้น 10 วินาที)
+// ถ้า server ไม่ตอบภายในเวลาที่กำหนด จะยกเลิกคำขอให้เอง หน้าจอจะได้ไม่ค้าง
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -28,15 +35,16 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 10000) => {
 };
 
 const AddCategory = ({ navigation }) => {
-    const [genreName, setGenreName] = useState('');
-    const [moodName, setMoodName] = useState('');
-    const [submittingGenre, setSubmittingGenre] = useState(false);
-    const [submittingMood, setSubmittingMood] = useState(false);
+    const [genreName, setGenreName] = useState('');               // ชื่อ genre ที่กำลังพิมพ์
+    const [moodName, setMoodName] = useState('');                 // ชื่อ mood ที่กำลังพิมพ์
+    const [submittingGenre, setSubmittingGenre] = useState(false); // true ระหว่างบันทึก genre
+    const [submittingMood, setSubmittingMood] = useState(false);   // true ระหว่างบันทึก mood
 
-    const [genreList, setGenreList] = useState([]); // [{ genre_id, genre_name }, ...] โหลดไว้เช็กซ้ำ/โชว์ suggestion
-    const [moodList, setMoodList] = useState([]); // [{ mood_id, mood_name }, ...]
+    // รายการ genre และ mood ที่มีอยู่แล้วในระบบ ใช้ทำคำแนะนำและเช็กชื่อซ้ำ
+    const [genreList, setGenreList] = useState([]);
+    const [moodList, setMoodList] = useState([]);
 
-    // โหลดรายชื่อ genre/mood ที่มีอยู่แล้วมาเก็บไว้ตั้งแต่เปิดหน้า เพื่อใช้เช็กว่าซ้ำไหมตอนพิมพ์/กด Add
+    // ตอนเปิดหน้า: โหลด genre และ mood ที่มีอยู่แล้วทั้งหมดมาเก็บไว้
     useEffect(() => {
         fetchWithTimeout(GENRE_URL)
             .then((res) => res.json())
@@ -49,17 +57,23 @@ const AddCategory = ({ navigation }) => {
             .catch((err) => console.log('โหลด mood ไม่สำเร็จ:', err));
     }, []);
 
-    // genre ที่มีอยู่แล้วและชื่อใกล้เคียงกับที่กำลังพิมพ์ (โชว์เป็น suggestion ใต้ช่องกรอก)
+    // คำแนะนำระหว่างพิมพ์: แสดงชื่อที่มีอยู่แล้วซึ่งมีคำที่พิมพ์อยู่ข้างใน
+    // เทียบแบบไม่สนตัวพิมพ์เล็ก-ใหญ่ (toLowerCase) เช่น พิมพ์ "po" จะเจอ "Pop"
+    // ช่วยให้แอดมินเห็นว่ามีหมวดนี้อยู่แล้ว จะได้ไม่เพิ่มซ้ำ
+    // ถ้าช่องยังว่างอยู่ ไม่ต้องแสดงคำแนะนำ
     const genreSuggestions = genreName.trim()
         ? genreList.filter((g) => g.genre_name.toLowerCase().includes(genreName.trim().toLowerCase()))
         : [];
-    // mood ที่มีอยู่แล้วและชื่อใกล้เคียงกับที่กำลังพิมพ์ (หลักการเดียวกับ genreSuggestions)
     const moodSuggestions = moodName.trim()
         ? moodList.filter((m) => m.mood_name.toLowerCase().includes(moodName.trim().toLowerCase()))
         : [];
 
-    // กดปุ่ม Add ของ genre: ถ้าชื่อนี้มีอยู่แล้ว (เทียบแบบไม่สนตัวพิมพ์เล็ก-ใหญ่) ก็ทำเป็นเพิ่มสำเร็จ
-    // ไปเลยโดยไม่ยิง POST ซ้ำ (กันแถวซ้ำในตาราง Genre) ถ้ายังไม่มีค่อยยิง POST /Genre จริง
+    // กดเพิ่ม genre:
+    //   1) ถ้าช่องว่าง ให้เตือนแล้วหยุด
+    //   2) ถ้ามีชื่อนี้อยู่แล้ว (ไม่สนตัวพิมพ์เล็ก-ใหญ่) จะไม่ส่งไป server เพื่อกันข้อมูลซ้ำ
+    //      แต่ยังแจ้งว่าเพิ่มสำเร็จ เพราะผลลัพธ์ที่แอดมินต้องการ (มีหมวดนี้ในระบบ) เป็นจริงอยู่แล้ว
+    //   3) ถ้าเป็นชื่อใหม่ ส่งไปบันทึกในตาราง Genre
+    //      สำเร็จแล้วเพิ่มชื่อนี้ในรายการบนเครื่องทันที (คำแนะนำครั้งถัดไปจะเห็น) และล้างช่องพิมพ์
     const handleAddGenre = async () => {
         const name = genreName.trim();
         if (!name) {
@@ -98,7 +112,7 @@ const AddCategory = ({ navigation }) => {
         }
     };
 
-    // กดปุ่ม Add ของ mood: หลักการเดียวกับ handleAddGenre เป๊ะๆ แค่เปลี่ยนตาราง
+    // กดเพิ่ม mood: ทำงานแบบเดียวกับ handleAddGenre แต่บันทึกลงตาราง Mood
     const handleAddMood = async () => {
         const name = moodName.trim();
         if (!name) {
@@ -144,7 +158,6 @@ const AddCategory = ({ navigation }) => {
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         style={styles.circleButton}
@@ -163,10 +176,8 @@ const AddCategory = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Title */}
                 <Text style={styles.screenTitle}>Add Category</Text>
 
-                {/* Genre Card */}
                 <View style={styles.card}>
                     <Text style={styles.cardLabel}>Genre</Text>
                     <View style={styles.inputBox}>
@@ -179,7 +190,6 @@ const AddCategory = ({ navigation }) => {
                         />
                     </View>
 
-                    {/* Suggestion: genre ที่พิมพ์ตรงกับที่มีอยู่แล้วในระบบ */}
                     {genreSuggestions.length > 0 && (
                         <View style={styles.suggestionBox}>
                             {genreSuggestions.map((g) => (
@@ -208,7 +218,6 @@ const AddCategory = ({ navigation }) => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Mood Card */}
                 <View style={styles.card}>
                     <Text style={styles.cardLabel}>Mood</Text>
                     <View style={styles.inputBox}>
@@ -221,7 +230,6 @@ const AddCategory = ({ navigation }) => {
                         />
                     </View>
 
-                    {/* Suggestion: mood ที่พิมพ์ตรงกับที่มีอยู่แล้วในระบบ */}
                     {moodSuggestions.length > 0 && (
                         <View style={styles.suggestionBox}>
                             {moodSuggestions.map((m) => (

@@ -18,15 +18,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Feather } from '@expo/vector-icons';
 
-const API_URL = 'https://lyriseek-api-database.onrender.com'; // ⚠️ เปลี่ยนเป็นของเครื่อง Server (Backend_Database/main.py) ถ้าเปลี่ยนเครื่อง
-const SEARCH_DELAY_MS = 300; // รอให้หยุดพิมพ์ก่อนค่อยค้น จะได้ไม่ยิง request ทุกตัวอักษร
-const MAX_SUGGESTIONS = 30; // genre มีกว่า 400 อัน โชว์เฉพาะที่ตรงกับที่พิมพ์ไม่เกินจำนวนนี้
+// หน้าแก้ไขข้อมูลเพลง (สำหรับแอดมิน)
+// วิธีใช้: พิมพ์ชื่อเพลงเพื่อค้นหา -> กดเพลงที่ต้องการ -> แก้ข้อมูลในหน้าต่างที่เด้งขึ้นมา -> บันทึก
+// แก้ได้ 4 อย่าง: ชื่อศิลปิน, ลิงก์ YouTube, แนวเพลง (genre), อารมณ์เพลง (mood)
+// (ชื่อเพลงและเนื้อเพลงแก้ในหน้านี้ไม่ได้)
 
-// ตัดรหัสวิดีโอจากลิงก์ YouTube/YouTube Music ตรรกะเดียวกับ get_video_id ใน Backend_Database/AddSong.py ถ้าแก้ต้องแก้ทั้งคู่
+// ที่อยู่หลักของ API บน Render
+const API_URL = 'https://lyriseek-api-database.onrender.com';
+// หลังหยุดพิมพ์ 0.3 วินาทีจึงค่อยค้นหา (ไม่ค้นทุกตัวอักษรที่พิมพ์ ประหยัดการเรียก server)
+const SEARCH_DELAY_MS = 300;
+// แสดงคำแนะนำ genre/mood ได้สูงสุด 30 รายการ (กันรายการยาวเกินจอ)
+const MAX_SUGGESTIONS = 30;
+
+// รูปแบบลิงก์ YouTube ที่ยอมรับ ใช้ดึง "รหัสวิดีโอ" 11 ตัวอักษรออกมา
+// รับได้ทั้งแบบ youtube.com/watch?v=XXXXXXXXXXX, music.youtube.com/... และ youtu.be/XXXXXXXXXXX
+// ไม่รับลิงก์ที่ไม่มีรหัสวิดีโอ เช่น ลิงก์ playlist หรือลิงก์ช่อง
 const YOUTUBE_LINK_RE = /^https?:\/\/(?:[a-z0-9-]+\.)*(?:youtube\.com\/\S*[?&]v=|youtu\.be\/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])/i;
+// คืนรหัสวิดีโอจากลิงก์ ถ้าลิงก์ไม่ถูกรูปแบบจะคืนค่าว่าง ''
 const getVideoId = (link) => link.trim().match(YOUTUBE_LINK_RE)?.[1] ?? '';
 
-// เรียก fetch พร้อม timeout กันหน้าค้างถ้า server ไม่ตอบ (เหมือนที่ทำไว้ใน AddSong.js)
+// fetch แบบมีเวลาหมดอายุ (ค่าเริ่มต้น 30 วินาที เผื่อ server บน Render ที่กำลังตื่นจากการพัก)
+// ถ้า server ไม่ตอบภายในเวลาที่กำหนด จะยกเลิกคำขอให้เอง หน้าจอจะได้ไม่ค้าง
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 30000) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -37,10 +49,19 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 30000) => {
     }
 };
 
-// ช่องพิมพ์ genre/mood: ที่เลือกไว้แล้วติ๊กอยู่บนสุดเสมอ พอพิมพ์ค่อยขึ้นตัวเลือกที่ตรงกันให้ติ๊กเพิ่ม
+// ส่วนเลือกหมวดหมู่ที่ใช้ซ้ำได้ ใช้ทั้งกับ genre และ mood
+// รับค่าเข้ามา:
+//   label    = ชื่อที่แสดง เช่น 'Genre'
+//   options  = หมวดทั้งหมดที่มีในระบบ
+//   selected = หมวดที่เพลงนี้มีอยู่ตอนนี้
+//   onToggle = ฟังก์ชันที่เรียกเมื่อกดติ๊ก/ยกเลิก
+//   idKey, nameKey = ชื่อช่อง id และชื่อ เช่น 'genre_id' กับ 'genre_name'
+// การแสดงผล: หมวดที่เลือกแล้วแสดงไว้ด้านบนเสมอ ส่วนหมวดอื่นจะโผล่เป็นคำแนะนำเมื่อพิมพ์ค้นหา
 const CategoryPicker = ({ label, options, selected, onToggle, idKey, nameKey }) => {
-    const [text, setText] = useState('');
+    const [text, setText] = useState(''); // คำที่พิมพ์ในช่องค้นหาหมวด
 
+    // หาคำแนะนำ: หมวดที่ยังไม่ได้เลือก และชื่อมีคำที่พิมพ์อยู่ (ไม่สนตัวพิมพ์เล็ก-ใหญ่)
+    // ตัดให้เหลือไม่เกิน MAX_SUGGESTIONS รายการ ถ้ายังไม่ได้พิมพ์อะไรจะไม่แสดงคำแนะนำ
     const selectedIds = selected.map((item) => item[idKey]);
     const keyword = text.trim().toLowerCase();
     const suggestions = keyword
@@ -94,22 +115,28 @@ const CategoryPicker = ({ label, options, selected, onToggle, idKey, nameKey }) 
 };
 
 const EditAdmin = ({ navigation }) => {
-    const [query, setQuery] = useState('');
-    const [songs, setSongs] = useState([]); // [{ song_id, song_name, Artist, Image_Link, genres, moods }, ...]
-    const [searching, setSearching] = useState(false);
-    const [searchFailed, setSearchFailed] = useState(false);
-    const latestSearch = useRef(0); // กันผลของคำค้นเก่าที่ตอบช้ากว่า มาทับผลของคำล่าสุด
+    // ===== ส่วนค้นหาเพลง =====
+    const [query, setQuery] = useState('');                 // คำที่พิมพ์ในช่องค้นหา
+    const [songs, setSongs] = useState([]);                 // เพลงที่ค้นเจอ
+    const [searching, setSearching] = useState(false);      // true ระหว่างรอผลค้นหา
+    const [searchFailed, setSearchFailed] = useState(false); // true ถ้าค้นหาแล้วเชื่อมต่อ server ไม่ได้
+    // ลำดับของการค้นหาล่าสุด ใช้กันผลเก่ามาทับผลใหม่ (อธิบายใน useEffect ด้านล่าง)
+    // useRef = ตัวแปรที่จำค่าได้ข้ามการวาดหน้าจอใหม่ และเปลี่ยนค่าได้โดยไม่ทำให้หน้าจอวาดใหม่
+    const latestSearch = useRef(0);
 
+    // genre และ mood ทั้งหมดในระบบ (ใช้เป็นตัวเลือกตอนแก้ไข)
     const [genreOptions, setGenreOptions] = useState([]);
     const [moodOptions, setMoodOptions] = useState([]);
 
-    const [editingSong, setEditingSong] = useState(null); // เพลงที่เปิด popup อยู่ (null = ปิด)
-    const [artist, setArtist] = useState('');
-    const [youtubeLink, setYoutubeLink] = useState('');
-    const [selectedGenres, setSelectedGenres] = useState([]);
-    const [selectedMoods, setSelectedMoods] = useState([]);
-    const [saving, setSaving] = useState(false);
+    // ===== ส่วนแก้ไขเพลง =====
+    const [editingSong, setEditingSong] = useState(null);    // เพลงที่กำลังแก้ (null = หน้าต่างแก้ไขปิดอยู่)
+    const [artist, setArtist] = useState('');                // ค่าศิลปินในฟอร์ม
+    const [youtubeLink, setYoutubeLink] = useState('');      // ค่าลิงก์ YouTube ในฟอร์ม
+    const [selectedGenres, setSelectedGenres] = useState([]); // genre ที่ติ๊กไว้ (เก็บทั้ง object มี id และชื่อ)
+    const [selectedMoods, setSelectedMoods] = useState([]);   // mood ที่ติ๊กไว้
+    const [saving, setSaving] = useState(false);             // true ระหว่างบันทึก
 
+    // ตอนเปิดหน้า: โหลด genre และ mood ทั้งหมดมาเก็บไว้ใช้เป็นตัวเลือก
     useEffect(() => {
         fetchWithTimeout(`${API_URL}/Genre`)
             .then((res) => res.json())
@@ -121,6 +148,16 @@ const EditAdmin = ({ navigation }) => {
             .catch((err) => console.log('โหลด mood ไม่สำเร็จ:', err));
     }, []);
 
+    // ค้นหาเพลงอัตโนมัติทุกครั้งที่คำค้นเปลี่ยน
+    // ค้นจาก "ชื่อเพลง" ในฐานข้อมูล ที่มีคำนี้อยู่ส่วนไหนก็ได้ (ไม่ใช่ค้นจากเนื้อร้อง) ได้ผลไม่เกิน 50 เพลง
+    // มีเทคนิค 2 อย่าง:
+    //   1) หน่วงเวลา (debounce): ตั้งเวลา 0.3 วินาทีก่อนค่อยค้น
+    //      ถ้าพิมพ์ตัวถัดไปก่อนครบเวลา คำสั่ง return ด้านล่างจะยกเลิกนาฬิกาเดิม แล้วเริ่มนับใหม่
+    //      ผลคือค้นแค่ครั้งเดียวตอนพิมพ์เสร็จ ไม่ใช่ค้นทุกตัวอักษร
+    //   2) กันผลเก่ามาทับผลใหม่: การค้นแต่ละครั้งได้หมายเลข (searchId)
+    //      ตอนผลกลับมา จะเอาผลไปแสดงก็ต่อเมื่อเป็นการค้นครั้งล่าสุดเท่านั้น
+    //      (กันกรณีค้น "ab" แล้ว "abc" แต่ผลของ "ab" ช้ากว่า แล้วมาทับผลของ "abc")
+    // ถ้าช่องค้นหาว่าง ให้ล้างผลทิ้งแล้วไม่ต้องค้น
     useEffect(() => {
         const keyword = query.trim();
         const searchId = ++latestSearch.current;
@@ -157,6 +194,8 @@ const EditAdmin = ({ navigation }) => {
         return () => clearTimeout(timer);
     }, [query]);
 
+    // กดเพลงในผลค้นหา: เปิดหน้าต่างแก้ไข แล้วเติมค่าปัจจุบันของเพลงลงในฟอร์ม
+    // genres/moods ของเพลงมาจาก server พร้อมผลค้นหาแล้ว จึงใส่ได้ทันที
     const openEditor = (song) => {
         setEditingSong(song);
         setArtist(song.Artist || '');
@@ -165,6 +204,10 @@ const EditAdmin = ({ navigation }) => {
         setSelectedMoods(song.moods);
     };
 
+    // สร้างฟังก์ชันติ๊ก/ยกเลิกติ๊ก ใช้ได้ทั้ง genre และ mood
+    // เช่น toggleIn(setSelectedGenres, 'genre_id') จะได้ฟังก์ชันที่รับ genre 1 ตัว แล้ว:
+    //   - ถ้ามี id นี้อยู่ในรายการแล้ว -> เอาออก
+    //   - ถ้ายังไม่มี -> เพิ่มเข้าไป
     const toggleIn = (setList, idKey) => (item) => {
         setList((prev) =>
             prev.some((x) => x[idKey] === item[idKey])
@@ -173,7 +216,13 @@ const EditAdmin = ({ navigation }) => {
         );
     };
 
-    // เช็กเฉพาะตอนลิงก์เปลี่ยน (เหมือน backend) เพลงเก่าที่ลิงก์ใช้ไม่ได้อยู่แล้วยังแก้ genre/mood ได้
+    // ตรวจลิงก์ YouTube และเตรียมรูปตัวอย่างระหว่างแก้ไข (คำนวณใหม่ทุกครั้งที่พิมพ์)
+    //   linkChanged  = ลิงก์ในฟอร์มต่างจากลิงก์เดิมของเพลงไหม
+    //   linkInvalid  = เปลี่ยนลิงก์แล้ว แต่ลิงก์ใหม่ไม่มีรหัสวิดีโอ (ใช้ไม่ได้)
+    //   previewImage = รูปปกที่จะแสดง
+    //       ลิงก์ไม่เปลี่ยน     -> ใช้รูปเดิม
+    //       ลิงก์ใหม่ถูกต้อง   -> สร้างลิงก์รูปปกจากรหัสวิดีโอ (รูปแบบเดียวกับที่ server สร้าง)
+    //       ลิงก์ใหม่ไม่ถูกต้อง -> ไม่แสดงรูป
     const linkChanged = editingSong !== null && youtubeLink.trim() !== (editingSong.youtube_link || '');
     const linkInvalid = linkChanged && !getVideoId(youtubeLink);
     let previewImage = editingSong?.Image_Link;
@@ -183,6 +232,14 @@ const EditAdmin = ({ navigation }) => {
             : `https://img.youtube.com/vi/${getVideoId(youtubeLink)}/hqdefault.jpg`;
     }
 
+    // กดบันทึกการแก้ไข
+    //   1) ถ้าลิงก์ใหม่ไม่ถูกต้อง ให้เตือนแล้วหยุด
+    //   2) ส่งค่าใหม่ทั้งหมดไปที่ server (PUT /Song/<song_id>/details)
+    //      genre/mood ส่งเป็นรายการ id ทั้งชุด server จะลบของเดิมทิ้งแล้วใส่ชุดนี้แทน
+    //      server ยังแก้ศิลปิน/ลิงก์/รูปปก ในตาราง history ให้ตรงกันด้วย
+    //   3) ถ้าสำเร็จ: อัปเดตเพลงนั้นในผลค้นหาบนจอทันที (ไม่ต้องค้นใหม่) แล้วปิดหน้าต่างแก้ไข
+    //      ลิงก์และรูปปกใช้ค่าที่ server ส่งกลับมา เพราะ server เป็นคนสร้างลิงก์รูปปกใหม่
+    //      ถ้าลบชื่อศิลปินจนว่าง จะเก็บเป็น null (ไม่มีศิลปิน)
     const handleSave = async () => {
         if (linkInvalid) {
             Alert.alert('ลิงก์ไม่ถูกต้อง', 'ต้องเป็นลิงก์เพลงเดี่ยวของ YouTube หรือ YouTube Music');
@@ -269,7 +326,6 @@ const EditAdmin = ({ navigation }) => {
         <SafeAreaView style={styles.container}>
             <StatusBar style="dark" />
 
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.circleButton}
@@ -290,7 +346,6 @@ const EditAdmin = ({ navigation }) => {
                 </TouchableOpacity>
             </View>
 
-            {/* Search Bar */}
             <View style={styles.searchBar}>
                 <Feather name="search" size={22} color="#1E1E1E" style={styles.searchIcon} />
                 <TextInput
@@ -317,7 +372,6 @@ const EditAdmin = ({ navigation }) => {
                 }
             />
 
-            {/* Popup เต็มจอสำหรับแก้ไขเพลง */}
             <Modal
                 visible={editingSong !== null}
                 animationType="slide"
