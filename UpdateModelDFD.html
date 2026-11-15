@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update Model DFD</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f8fb; --card: #ffffff; --ink: #1d2433; --muted: #5b6475; --line: #e3e7ef;
+    --stroke: #1d2433; --flow: #2a78d6; --fill: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151c; --card: #1b2029; --ink: #e8ebf2; --muted: #9aa3b5; --line: #2c3340;
+      --stroke: #e8ebf2; --flow: #5b9cf0; --fill: #1b2029;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Sarabun", system-ui, sans-serif; line-height: 1.6; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .chart { overflow-x: auto; }
+  .chart > svg { display: block; width: 100%; min-width: 760px; height: auto; font-family: "Sarabun", system-ui, sans-serif; }
+  .shape { fill: var(--fill); stroke: var(--stroke); stroke-width: 1.6; }
+  .store { stroke: var(--stroke); stroke-width: 1.6; }
+  .node { fill: var(--ink); font-size: 17px; text-anchor: middle; }
+  .flow { stroke: var(--flow); stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+  .lbl { fill: var(--ink); font-size: 15px; }
+  .sym { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 12px; color: var(--muted); font-size: .95rem; }
+  .sym span { display: inline-flex; align-items: center; gap: 8px; }
+  h2 { font-size: 1.15rem; margin: 28px 0 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  code { font-size: .88em; background: var(--line); padding: 1px 5px; border-radius: 4px; white-space: nowrap; }
+  .tw { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>DFD: กระบวนการที่ 12 เพิ่มเพลงเข้าโมเดล</h1>
+  <p class="sub">หน้า UpdateModel.js → Render <code>/Train_Song/update_model</code> → Modal <code>/update_model</code></p>
+
+  <div class="card chart">
+    <svg viewBox="0 140 1000 410" role="img" aria-label="DFD กระบวนการเพิ่มเพลงเข้าโมเดล">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--flow)"/>
+        </marker>
+      </defs>
+
+      <!-- ผู้ดูแลระบบ (external entity) -->
+      <rect class="shape" x="30" y="200" width="180" height="80"/>
+      <text class="node" x="120" y="246">ผู้ดูแลระบบ</text>
+
+      <!-- process 12 -->
+      <circle class="shape" cx="500" cy="240" r="85"/>
+      <text class="node" x="500" y="232">12</text>
+      <text class="node" x="500" y="256">เพิ่มเพลงเข้าโมเดล</text>
+
+      <!-- แฟ้มข้อมูลเพลงสำหรับฝึก (data store) -->
+      <line class="store" x1="800" y1="190" x2="980" y2="190"/>
+      <line class="store" x1="800" y1="290" x2="980" y2="290"/>
+      <text class="node" x="890" y="234">แฟ้มข้อมูลเพลง</text>
+      <text class="node" x="890" y="258">สำหรับฝึก</text>
+
+      <!-- แฟ้มโมเดลค้นหา (data store) -->
+      <line class="store" x1="370" y1="460" x2="630" y2="460"/>
+      <line class="store" x1="370" y1="530" x2="630" y2="530"/>
+      <text class="node" x="500" y="501">แฟ้มโมเดลค้นหา (index)</text>
+
+      <!-- ผู้ดูแลระบบ <-> 12 -->
+      <line class="flow" x1="210" y1="215" x2="418" y2="215"/>
+      <text class="lbl" x="230" y="205">update_request</text>
+      <line class="flow" x1="415" y1="245" x2="210" y2="245"/>
+      <text class="lbl" x="230" y="238">newsong_list</text>
+      <line class="flow" x1="422" y1="275" x2="210" y2="275"/>
+      <text class="lbl" x="230" y="268">update_result</text>
+
+      <!-- 12 <-> แฟ้มข้อมูลเพลงสำหรับฝึก -->
+      <line class="flow" x1="575" y1="200" x2="800" y2="200"/>
+      <text class="lbl" x="620" y="190">song_request</text>
+      <line class="flow" x1="800" y1="240" x2="585" y2="240"/>
+      <text class="lbl" x="620" y="232">newsong_lyrics</text>
+      <line class="flow" x1="575" y1="280" x2="800" y2="280"/>
+      <text class="lbl" x="620" y="272">delete_trained_song</text>
+
+      <!-- 12 <-> แฟ้มโมเดลค้นหา -->
+      <line class="flow" x1="530" y1="460" x2="530" y2="320"/>
+      <text class="lbl" x="542" y="400">current_index</text>
+      <line class="flow" x1="470" y1="320" x2="470" y2="460"/>
+      <text class="lbl" x="458" y="400" text-anchor="end">new_song_index</text>
+    </svg>
+    <div class="sym">
+      <span><svg width="34" height="20"><rect x="1" y="1" width="32" height="18" class="shape"/></svg>ผู้เกี่ยวข้องภายนอก</span>
+      <span><svg width="22" height="22"><circle cx="11" cy="11" r="10" class="shape"/></svg>กระบวนการ</span>
+      <span><svg width="34" height="20"><line x1="0" y1="2" x2="34" y2="2" class="store"/><line x1="0" y1="18" x2="34" y2="18" class="store"/></svg>แฟ้มข้อมูล</span>
+      <span><svg width="40" height="12"><line x1="0" y1="6" x2="38" y2="6" class="flow"/></svg>การไหลของข้อมูล</span>
+    </div>
+  </div>
+
+  <h2>คำอธิบายเส้นข้อมูล</h2>
+  <div class="card tw">
+    <table>
+      <thead><tr><th>ชื่อเส้น</th><th>จาก → ไป</th><th>ข้อมูลที่ส่ง</th><th>ในโค้ดจริง</th></tr></thead>
+      <tbody>
+        <tr><td><b>newsong_list</b></td><td>12 → ผู้ดูแลระบบ</td><td>รายชื่อเพลงที่รอเทรน (newsong_id, ชื่อเพลง, ศิลปิน)</td><td><code>GET /Train_Song</code></td></tr>
+        <tr><td><b>update_request</b></td><td>ผู้ดูแลระบบ → 12</td><td>newsong_id ของเพลงที่ติ๊กเลือก</td><td><code>POST /Train_Song/update_model</code></td></tr>
+        <tr><td><b>song_request</b></td><td>12 → แฟ้มข้อมูลเพลงสำหรับฝึก</td><td>newsong_id ที่ต้องการ</td><td><code>SELECT … WHERE newsong_id = ANY(...)</code></td></tr>
+        <tr><td><b>newsong_lyrics</b></td><td>แฟ้มข้อมูลเพลงสำหรับฝึก → 12</td><td>ชื่อเพลง, ศิลปิน, เนื้อเพลง</td><td>ผลของ SELECT ข้างบน</td></tr>
+        <tr><td><b>current_index</b></td><td>แฟ้มโมเดลค้นหา → 12</td><td>embedding และ metadata ของเพลงเดิม</td><td><code>update_index()</code> โหลดไฟล์ index เดิม</td></tr>
+        <tr><td><b>new_song_index</b></td><td>12 → แฟ้มโมเดลค้นหา</td><td>chunk + E5 embedding ของเพลงใหม่ ต่อท้าย index</td><td><code>chunks_embeddings.pt</code>, <code>chunks_metadata.pkl</code> แล้ว <code>reload_index()</code></td></tr>
+        <tr><td><b>delete_trained_song</b></td><td>12 → แฟ้มข้อมูลเพลงสำหรับฝึก</td><td>newsong_id ที่เทรนสำเร็จ (ลบเฉพาะตอนสำเร็จ)</td><td><code>DELETE FROM "Train_Song" WHERE newsong_id = ANY(...)</code></td></tr>
+        <tr><td><b>update_result</b></td><td>12 → ผู้ดูแลระบบ</td><td>สำเร็จ / ไม่สำเร็จ และจำนวนเพลงที่เทรน</td><td><code>GET /Train_Song/update_model/{job_id}</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>

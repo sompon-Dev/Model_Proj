@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chunk vs Whole Song</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f3f0;
+    --surface-1: #fcfcfb;
+    --border: #e2e1dc;
+    --grid: #ebeae6;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7974;
+    --series-1: #2a78d6;   /* แบ่ง chunk (ระบบเรา) */
+    --series-2: #eb6834;   /* ทั้งเพลง = 1 chunk */
+    --series-1-soft: #9ec5f4;
+    --series-2-soft: #f5b69c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --border: #2e2e2c;
+      --grid: #262624;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8f8e88;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-1-soft: #1c5cab;
+      --series-2-soft: #8a3a1a;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #2e2e2c;
+    --grid: #262624;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e88;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-1-soft: #1c5cab;
+    --series-2-soft: #8a3a1a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface-0); color: var(--text-primary);
+    font-family: "Sarabun", "Noto Sans Thai", "Leelawadee UI", system-ui, sans-serif;
+    line-height: 1.55;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; margin: 0 0 4px; }
+  h3 { font-size: 1rem; margin: 20px 0 4px; }
+  .sub { color: var(--text-secondary); margin: 0 0 20px; }
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; margin: 0 0 20px;
+  }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: .9rem; color: var(--text-secondary); margin: 8px 0 4px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .sw.s1 { background: var(--series-1); } .sw.s2 { background: var(--series-2); }
+  .sw.s1s { background: var(--series-1-soft); } .sw.s2s { background: var(--series-2-soft); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 0 0 20px; }
+  .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .kpi .label { color: var(--text-secondary); font-size: .85rem; }
+  .kpi .value { font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kpi .note { color: var(--text-muted); font-size: .8rem; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  svg text { fill: var(--text-secondary); font-size: 12px; font-family: inherit; }
+  svg .axis-label { fill: var(--text-muted); font-size: 11px; }
+  svg .val { fill: var(--text-primary); font-size: 11px; font-variant-numeric: tabular-nums; }
+  svg .grid { stroke: var(--grid); stroke-width: 1; }
+  svg .base { stroke: var(--text-muted); stroke-width: 1; }
+  .bar { cursor: default; }
+  .bar:hover { opacity: .8; }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--text-secondary); font-size: .9rem; }
+  .tbl-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--text-secondary); font-weight: 600; }
+  .note-box { color: var(--text-secondary); font-size: .9rem; }
+  .note-box li { margin-bottom: 4px; }
+  .quote { background: var(--surface-0); border-radius: 8px; padding: 10px 12px; font-size: .9rem; color: var(--text-secondary); }
+  .quote b { color: var(--text-primary); }
+  #tip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: .82rem; box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    font-variant-numeric: tabular-nums; max-width: 260px;
+  }
+  #tip .t { color: var(--text-secondary); margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>แบ่ง chunk กับ ทั้งเพลง = 1 chunk</h1>
+  <p class="sub">เปรียบเทียบความแม่นยำและเวลาตอบของ Ver.5 ระบบค้นหาเพลงจากเนื้อร้อง (hybrid: W_DENSE 0.2, DENSE_LO 0.60, DENSE_HI 0.90 เท่ากันทั้งสองระบบ)</p>
+
+  <div class="legend">
+    <span><i class="sw s1"></i>แบ่ง chunk 32 คำ เลื่อนทีละ 16 (ระบบเรา) — 98,104 แถว</span>
+    <span><i class="sw s2"></i>ทั้งเพลง = 1 chunk — 7,909 แถว</span>
+  </div>
+
+  <!-- ===================== ผลทดสอบ 1 ===================== -->
+  <section class="card">
+    <h2>ผลทดสอบที่ 1 — ตัวอย่างคำค้น 1 คำค้น</h2>
+    <p class="sub">input: <b>"ไม่ว่าดวงใจจะเจ็บช้ำภาพ"</b> → หลังตัดคำ: ไม่ ว่า ดวงใจ จะ เจ็บช้ำ ภาพ &nbsp;|&nbsp; เพลงที่ถูก: <b>ความทรงจำ - Musketeers</b> (ได้อันดับ 1 ทั้งสองระบบ)</p>
+
+    <h3>คะแนนของเพลงที่ถูก แยกตามส่วนประกอบ</h3>
+    <div id="chart-example"></div>
+
+    <h3>ระยะห่างจากอันดับ 2 (หมื่นคำลา - Tattoo Colour)</h3>
+    <div id="chart-gap"></div>
+
+    <p class="quote">chunk ที่ตรงที่สุด: รู้สึก ว่า ยังมี ฉัน และ เธอ เสมอ <b>ไม่ ว่า ดวงใจ</b> เธอ <b>เจ็บช้ำ ภาพ</b> ความทรงจำ ยัง คอย ย้ำ ให้ คิดถึง เธอ อยู่ ...</p>
+    <ul class="note-box">
+      <li><b>lexical ตกจาก 0.357 เหลือ 0.116</b> — TF-IDF หารด้วยความยาวของแถว ทั้งเพลงมี 262 คำ คำที่ตรง 6 คำจึงมีน้ำหนักน้อย แต่ chunk มีแค่ 32 คำ คำที่ตรงจึงมีน้ำหนักมาก</li>
+      <li><b>cosine ลดเล็กน้อย</b> — vector ทั้งเพลงคือความหมายเฉลี่ยทั้งเพลง ท่อนที่ตรงถูกท่อนอื่นเจือจาง</li>
+      <li>ทั้งเพลงชนะอันดับ 2 แค่ 0.017 (เฉียดฉิว) ส่วนแบ่ง chunk ชนะ 0.156</li>
+    </ul>
+    <details><summary>ดูเป็นตาราง</summary><div class="tbl-wrap" id="tbl-example"></div></details>
+  </section>
+
+  <!-- ===================== ผลทดสอบ 2 ===================== -->
+  <section class="card">
+    <h2>ผลทดสอบที่ 2 — 1,000 เพลง</h2>
+    <p class="sub">สุ่ม 1,000 เพลงจาก TestCase_2.csv (seed 2026) ใช้คำค้นยาว 10 / 7 / 5 / 3 / 1 คำ จากเนื้อเพลงจริง</p>
+
+    <div class="kpis" id="kpis"></div>
+
+    <h3>P@1 — สัดส่วนที่เพลงถูกได้อันดับ 1</h3>
+    <div id="chart-p1"></div>
+
+    <h3>MRR — ค่าเฉลี่ยของ 1/อันดับ (คิดถึง Top 50)</h3>
+    <div id="chart-mrr"></div>
+
+    <h3>Top-11 — เพลงถูกติดใน 11 เพลงที่แอปแสดง</h3>
+    <div id="chart-top11"></div>
+
+    <details><summary>ดูเป็นตาราง</summary><div class="tbl-wrap" id="tbl-acc"></div></details>
+
+    <h3>เวลาตอบต่อ 1 คำค้น (ms, CPU, เฉลี่ยจาก 1,000 คำค้น)</h3>
+    <div class="legend">
+      <span><i class="sw s1s"></i><i class="sw s2s"></i>ตัดคำ + encode คำค้น (เท่ากันทั้งสองระบบ)</span>
+      <span><i class="sw s1"></i><i class="sw s2"></i>ให้คะแนน + จัดอันดับ</span>
+    </div>
+    <div id="chart-time"></div>
+    <details><summary>ดูเป็นตาราง</summary><div class="tbl-wrap" id="tbl-time"></div></details>
+
+    <ul class="note-box">
+      <li><b>แบ่ง chunk แม่นกว่าเกือบทุกความยาว</b> และยิ่งคำค้นสั้นยิ่งห่าง (5 คำ: P@1 0.883 กับ 0.825)</li>
+      <li><b>1 คำ</b> ทั้งเพลงดีกว่าเล็กน้อย แต่ทั้งสองระบบแทบใช้ไม่ได้ (P@1 ต่ำกว่า 5%) เพราะคำเดียวกว้างเกินไป</li>
+      <li><b>ทั้งเพลงเร็วกว่า ~2.5 เท่า</b> (64 กับ 163 ms) เพราะแถวน้อยกว่า 12 เท่า แต่ 163 ms ผู้ใช้ไม่รู้สึก เทียบกับเวลาส่งข้อมูลไป Modal ที่เป็นวินาที</li>
+      <li>ขนาด embedding: ทั้งเพลง 24 MB, แบ่ง chunk 301 MB</li>
+      <li>ข้อจำกัด: ค่า W/LO/HI ถูก tune มาสำหรับระบบแบ่ง chunk ระบบทั้งเพลงจึงอาจเสียเปรียบเล็กน้อย</li>
+    </ul>
+  </section>
+</main>
+<div id="tip"></div>
+
+<script>
+const S1 = "แบ่ง chunk (ระบบเรา)", S2 = "ทั้งเพลง = 1 chunk";
+
+const example = [
+  { metric: "cosine",  chunk: 0.8416, whole: 0.8334 },
+  { metric: "dense",   chunk: 0.8054, whole: 0.7779 },
+  { metric: "lexical", chunk: 0.3570, whole: 0.1159 },
+  { metric: "score",   chunk: 0.4467, whole: 0.2483 },
+];
+const gap = [
+  { metric: "อันดับ 1 (เพลงที่ถูก)", chunk: 0.4467, whole: 0.2483 },
+  { metric: "อันดับ 2",             chunk: 0.2911, whole: 0.2313 },
+  { metric: "ห่างกัน",              chunk: 0.1556, whole: 0.0170 },
+];
+const acc = [
+  { q: "10 คำ", chunk: { p1: .963, top5: .995, top11: .997, mrr: .9785, miss: 2 },   whole: { p1: .954, top5: .994, top11: .996, mrr: .9737, miss: 1 } },
+  { q: "7 คำ",  chunk: { p1: .939, top5: .993, top11: .996, mrr: .9650, miss: 3 },   whole: { p1: .917, top5: .991, top11: .991, mrr: .9519, miss: 2 } },
+  { q: "5 คำ",  chunk: { p1: .883, top5: .977, top11: .985, mrr: .9257, miss: 7 },   whole: { p1: .825, top5: .962, top11: .980, mrr: .8878, miss: 10 } },
+  { q: "3 คำ",  chunk: { p1: .648, top5: .828, top11: .872, mrr: .7314, miss: 46 },  whole: { p1: .607, top5: .802, top11: .858, mrr: .6926, miss: 55 } },
+  { q: "1 คำ",  chunk: { p1: .039, top5: .096, top11: .155, mrr: .0740, miss: 688 }, whole: { p1: .047, top5: .118, top11: .175, mrr: .0847, miss: 674 } },
+];
+const timing = [
+  { sys: S1, encode: 51.1, score: 111.5, p95: 133.3 },
+  { sys: S2, encode: 51.1, score: 12.8,  p95: 17.3 },
+];
+
+const tip = document.getElementById("tip");
+function showTip(e, title, lines) {
+  tip.innerHTML = `<div class="t">${title}</div>` + lines.join("<br>");
+  tip.style.display = "block";
+  const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px";
+}
+function hideTip() { tip.style.display = "none"; }
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+// แท่งที่ปลายข้างค่ามน 4px ส่วนข้างฐานเป็นมุมฉาก (แนวนอน: ฐานอยู่ซ้าย)
+function hbarPath(x, y, w, h, r) {
+  r = Math.min(r, w, h / 2);
+  if (w <= 0) return "";
+  return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`;
+}
+function vbarPath(x, y, w, h, r) {   // แนวตั้ง: ฐานอยู่ล่าง
+  r = Math.min(r, h, w / 2);
+  if (h <= 0) return "";
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
+const fmt = (v, d) => v.toFixed(d);
+
+// ---------- กราฟแท่งแนวนอนแบบกลุ่ม (2 ระบบต่อ 1 หมวด) ----------
+function groupedHBars(id, rows, opts) {
+  const host = document.getElementById(id);
+  const W = 900, labelW = opts.labelW || 150, right = 70, barH = 14, gapIn = 2, groupGap = 18;
+  const groupH = barH * 2 + gapIn;
+  const H = rows.length * (groupH + groupGap) + 26;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.aria }, host);
+  const x = v => labelW + (v / opts.max) * (W - labelW - right);
+  for (const t of opts.ticks) {
+    el("line", { x1: x(t), x2: x(t), y1: 0, y2: H - 22, class: "grid" }, svg);
+    const tx = el("text", { x: x(t), y: H - 6, "text-anchor": "middle", class: "axis-label" }, svg);
+    tx.textContent = opts.tickFmt ? opts.tickFmt(t) : t;
+  }
+  el("line", { x1: labelW, x2: labelW, y1: 0, y2: H - 22, class: "base" }, svg);
+  rows.forEach((r, i) => {
+    const gy = i * (groupH + groupGap) + 6;
+    const lab = el("text", { x: labelW - 10, y: gy + groupH / 2 + 4, "text-anchor": "end" }, svg);
+    lab.textContent = r.metric;
+    [["chunk", "var(--series-1)", S1], ["whole", "var(--series-2)", S2]].forEach(([k, c, name], j) => {
+      const y = gy + j * (barH + gapIn), v = r[k];
+      const p = el("path", { d: hbarPath(labelW, y, x(v) - labelW, barH, 4), fill: c, class: "bar" }, svg);
+      const hit = el("rect", { x: labelW, y: y - 1, width: W - labelW - right, height: barH + 2, fill: "transparent" }, svg);
+      const t = el("text", { x: x(v) + 6, y: y + barH - 3, class: "val" }, svg);
+      t.textContent = fmt(v, opts.dec);
+      const lines = [`${name}: <b>${fmt(v, opts.dec)}</b>`];
+      if (opts.extra) lines.push(...opts.extra(r, k));
+      hit.addEventListener("mousemove", e => showTip(e, r.metric, lines));
+      hit.addEventListener("mouseleave", hideTip);
+    });
+  });
+}
+
+// ---------- กราฟแท่งแนวตั้งแบบกลุ่ม (ความแม่นยำตามความยาวคำค้น) ----------
+function groupedVBars(id, key, label, dec) {
+  const host = document.getElementById(id);
+  const W = 900, H = 280, left = 44, bottom = 30, top = 20, right = 10;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": label }, host);
+  const plotH = H - top - bottom, plotW = W - left - right;
+  const y = v => top + plotH * (1 - v);
+  [0, .25, .5, .75, 1].forEach(t => {
+    el("line", { x1: left, x2: W - right, y1: y(t), y2: y(t), class: t === 0 ? "base" : "grid" }, svg);
+    const tx = el("text", { x: left - 8, y: y(t) + 4, "text-anchor": "end", class: "axis-label" }, svg);
+    tx.textContent = t.toFixed(2);
+  });
+  const gw = plotW / acc.length, bw = Math.min(54, gw * 0.3);
+  acc.forEach((r, i) => {
+    const cx = left + gw * i + gw / 2;
+    const lab = el("text", { x: cx, y: H - 8, "text-anchor": "middle" }, svg);
+    lab.textContent = "คำค้น " + r.q;
+    [["chunk", "var(--series-1)", S1, -1], ["whole", "var(--series-2)", S2, 1]].forEach(([k, c, name, side]) => {
+      const v = r[k][key];
+      const bx = side < 0 ? cx - bw - 1 : cx + 1;
+      el("path", { d: vbarPath(bx, y(v), bw, y(0) - y(v), 4), fill: c, class: "bar" }, svg);
+      const t = el("text", { x: bx + bw / 2, y: y(v) - 5, "text-anchor": "middle", class: "val" }, svg);
+      t.textContent = fmt(v, dec);
+      const hit = el("rect", { x: bx - 2, y: top, width: bw + 4, height: plotH, fill: "transparent" }, svg);
+      const other = r[k === "chunk" ? "whole" : "chunk"][key];
+      hit.addEventListener("mousemove", e => showTip(e, `คำค้น ${r.q} — ${label}`,
+        [`${name}: <b>${fmt(v, dec)}</b>`, `ต่างจากอีกระบบ: ${(v - other >= 0 ? "+" : "") + fmt(v - other, dec)}`,
+         `ไม่ติด Top 50: ${r[k].miss} เพลง`]));
+      hit.addEventListener("mouseleave", hideTip);
+    });
+  });
+}
+
+// ---------- กราฟเวลาแบบแท่งซ้อน ----------
+function timeChart() {
+  const host = document.getElementById("chart-time");
+  const W = 900, labelW = 170, right = 90, barH = 26, gapRow = 16;
+  const H = timing.length * (barH + gapRow) + 24, max = 180;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "เวลาตอบต่อคำค้น" }, host);
+  const x = v => labelW + (v / max) * (W - labelW - right);
+  [0, 40, 80, 120, 160].forEach(t => {
+    el("line", { x1: x(t), x2: x(t), y1: 0, y2: H - 22, class: t === 0 ? "base" : "grid" }, svg);
+    const tx = el("text", { x: x(t), y: H - 6, "text-anchor": "middle", class: "axis-label" }, svg);
+    tx.textContent = t + " ms";
+  });
+  timing.forEach((r, i) => {
+    const y = i * (barH + gapRow) + 6;
+    const soft = i === 0 ? "var(--series-1-soft)" : "var(--series-2-soft)";
+    const solid = i === 0 ? "var(--series-1)" : "var(--series-2)";
+    const lab = el("text", { x: labelW - 10, y: y + barH / 2 + 4, "text-anchor": "end" }, svg);
+    lab.textContent = r.sys;
+    el("rect", { x: x(0), y, width: x(r.encode) - x(0) - 1, height: barH, fill: soft }, svg);   // ช่องว่าง 2px ระหว่างส่วน
+    el("path", { d: hbarPath(x(r.encode) + 1, y, x(r.encode + r.score) - x(r.encode) - 1, barH, 4), fill: solid }, svg);
+    const t = el("text", { x: x(r.encode + r.score) + 8, y: y + barH / 2 + 4, class: "val" }, svg);
+    t.textContent = `รวม ${fmt(r.encode + r.score, 1)} ms`;
+    const hit = el("rect", { x: labelW, y, width: W - labelW - right, height: barH, fill: "transparent" }, svg);
+    hit.addEventListener("mousemove", e => showTip(e, r.sys, [
+      `ตัดคำ + encode: <b>${fmt(r.encode, 1)} ms</b>`, `ให้คะแนน + จัดอันดับ: <b>${fmt(r.score, 1)} ms</b>`,
+      `รวม: <b>${fmt(r.encode + r.score, 1)} ms</b>`, `p95 ส่วนจัดอันดับ: ${fmt(r.p95, 1)} ms`]));
+    hit.addEventListener("mouseleave", hideTip);
+  });
+}
+
+// ---------- ตาราง ----------
+function table(id, head, rows) {
+  document.getElementById(id).innerHTML =
+    `<table><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>` +
+    rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("") + "</tbody></table>";
+}
+
+groupedHBars("chart-example", example, { max: 1, ticks: [0, .25, .5, .75, 1], dec: 4, labelW: 90, aria: "คะแนนตัวอย่าง" });
+groupedHBars("chart-gap", gap, { max: .5, ticks: [0, .1, .2, .3, .4, .5], dec: 4, labelW: 170, aria: "ระยะห่างจากอันดับ 2" });
+groupedVBars("chart-p1", "p1", "P@1", 3);
+groupedVBars("chart-mrr", "mrr", "MRR", 3);
+groupedVBars("chart-top11", "top11", "Top-11", 3);
+timeChart();
+
+table("tbl-example", ["ค่า", "", S1, S2],
+  example.map(r => [r.metric, "", fmt(r.chunk, 4), fmt(r.whole, 4)]).concat(gap.map(r => [r.metric, "", fmt(r.chunk, 4), fmt(r.whole, 4)])));
+table("tbl-acc", ["คำค้น", "ระบบ", "P@1", "Top-5", "Top-11", "MRR", "ไม่ติด Top 50"],
+  acc.flatMap(r => [[r.q, S1, ...["p1", "top5", "top11"].map(k => fmt(r.chunk[k], 3)), fmt(r.chunk.mrr, 4), r.chunk.miss],
+                    [r.q, S2, ...["p1", "top5", "top11"].map(k => fmt(r.whole[k], 3)), fmt(r.whole.mrr, 4), r.whole.miss]]));
+table("tbl-time", ["ระบบ", "", "ตัดคำ + encode", "ให้คะแนน + จัดอันดับ", "p95 จัดอันดับ", "รวม"],
+  timing.map(r => [r.sys, "", fmt(r.encode, 1), fmt(r.score, 1), fmt(r.p95, 1), fmt(r.encode + r.score, 1)]));
+
+document.getElementById("kpis").innerHTML = [
+  ["P@1 คำค้น 5 คำ", "0.883 / 0.825", "แบ่ง chunk / ทั้งเพลง (+5.8 จุด)"],
+  ["P@1 คำค้น 10 คำ", "0.963 / 0.954", "แบ่ง chunk / ทั้งเพลง"],
+  ["เวลาตอบรวม", "163 / 64 ms", "แบ่ง chunk / ทั้งเพลง"],
+  ["ขนาด embedding", "301 / 24 MB", "แบ่ง chunk / ทั้งเพลง"],
+].map(([l, v, n]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join("");
+</script>
+</body>
+</html>

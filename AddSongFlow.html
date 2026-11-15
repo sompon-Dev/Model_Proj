@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add Song Flow</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f8fb; --card: #ffffff; --ink: #1d2433; --muted: #5b6475; --line: #e3e7ef;
+    --add: #2a78d6; --upd: #eb6834;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151c; --card: #1b2029; --ink: #e8ebf2; --muted: #9aa3b5; --line: #2c3340;
+      --add: #5b9cf0; --upd: #f2875c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Sarabun", system-ui, sans-serif; line-height: 1.6; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .phase { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; border-left: 4px solid var(--c); }
+  .phase h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .phase p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .chart { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; overflow-x: auto; }
+  .chart svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  .notes { margin-top: 20px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 20px; }
+  .notes h3 { margin: 0 0 6px; font-size: 1rem; }
+  .notes ul { margin: 0; padding-left: 20px; }
+  code { font-size: .9em; background: var(--line); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ระบบเพิ่มเพลงเข้าโมเดล</h1>
+  <p class="sub">AddSong.js → Render (main.py) → Supabase &nbsp;|&nbsp; UpdateModel.js → Render → Modal (Ver.5/API.py)</p>
+
+  <div class="phases">
+    <div class="phase" style="--c: var(--add)">
+      <h2>ช่วงที่ 1: AddSong</h2>
+      <p>บันทึกเพลงลง database ครบทุกตาราง และพักเนื้อเพลงไว้ใน Train_Song (คิวรอเทรน)</p>
+    </div>
+    <div class="phase" style="--c: var(--upd)">
+      <h2>ช่วงที่ 2: UpdateModel</h2>
+      <p>ดึงเพลงจากคิวไปทำ embedding บน Modal แล้วลบเพลงที่เทรนสำเร็จออกจากคิว</p>
+    </div>
+  </div>
+
+  <div class="chart"><div id="flow"></div></div>
+<script type="text/plain" id="flow-src">
+flowchart TD
+    subgraph P1["ช่วงที่ 1: AddSong.js → POST /AddSong"]
+    A([แอดมินเปิดหน้า AddSong]) --> B[กรอกชื่อเพลง, ศิลปิน, YouTube, เนื้อเพลง<br/>เลือก Genre / Mood]
+    B --> C{กรอกชื่อ, ศิลปิน,<br/>เนื้อเพลงครบ?}
+    C -- ไม่ครบ --> B
+    C -- ครบ --> D[POST /AddSong ไป Render]
+    D --> E{เพลงซ้ำในตาราง Song?}
+    E -- ซ้ำ --> F{แอดมินกด<br/>เพิ่มต่อไป?}
+    F -- ยกเลิก --> B
+    F -- เพิ่มต่อไป --> G
+    E -- ไม่ซ้ำ --> G[INSERT Song + ดึงรูปจาก YouTube]
+    G --> H[INSERT Genre_Song, Mood_Song]
+    H --> I[INSERT Train_Song<br/>ชื่อเพลง, ศิลปิน, เนื้อเพลง]
+    I --> J[INSERT trending_song ยอด = 0]
+    J --> K{ทุกขั้นสำเร็จ?}
+    K -- ไม่ --> L[rollback ยกเลิกทั้งหมด]
+    L --> B
+    K -- ใช่ --> M[(commit<br/>เพลงอยู่ใน DB แล้ว<br/>แต่ยังค้นด้วยเนื้อเพลงไม่เจอ)]
+    end
+
+    subgraph P2["ช่วงที่ 2: UpdateModel.js → POST /Train_Song/update_model"]
+    N([แอดมินเปิดหน้า UpdateModel]) --> O[GET /Train_Song<br/>แสดงเพลงที่รอเทรน]
+    O --> P[ติ๊กเลือกเพลง แล้วกดยืนยัน]
+    P --> Q[POST /Train_Song/update_model<br/>Render ตอบ started + job_id]
+    Q --> R[Render ส่งเนื้อเพลงไป Modal /update_model]
+    R --> S[Modal: preprocess → ตัด chunk →<br/>E5 embedding → ต่อเข้า index]
+    S --> T[reload_index<br/>โหลด embedding + TF-IDF ใหม่]
+    T --> U{Modal สำเร็จ?}
+    U -- ไม่ --> V[ไม่ลบอะไร<br/>เพลงยังอยู่ใน Train_Song ให้ลองใหม่]
+    U -- ใช่ --> W[DELETE เพลงที่เทรนแล้ว<br/>ออกจาก Train_Song]
+    W --> Y([ค้นหาด้วยเนื้อเพลงเจอแล้ว])
+    Q -. แอปถามผลเป็นระยะ .-> X[GET /Train_Song/update_model/job_id]
+    end
+
+    M --> N
+
+    classDef add fill:var(--addFill),stroke:var(--addStroke),color:var(--txt)
+    classDef upd fill:var(--updFill),stroke:var(--updStroke),color:var(--txt)
+    class A,B,C,D,E,F,G,H,I,J,K,L,M add
+    class N,O,P,Q,R,S,T,U,V,W,X,Y upd
+</script>
+
+  <div class="notes">
+    <h3>ตารางที่เกี่ยวข้อง</h3>
+    <ul>
+      <li><b>AddSong:</b> <code>Song</code>, <code>Genre</code> / <code>Genre_Song</code>, <code>Mood</code> / <code>Mood_Song</code>, <code>Train_Song</code>, <code>trending_song</code> ทำเป็น transaction เดียว ถ้าพังกลางทางจะ rollback ทั้งหมด</li>
+      <li><b>UpdateModel:</b> ใช้แค่ <code>Train_Song</code> (SELECT แล้ว DELETE) ส่วนที่ถูกแก้อีกที่คือไฟล์ index บน Modal (<code>chunks_embeddings.pt</code>, <code>chunks_metadata.pkl</code>)</li>
+    </ul>
+  </div>
+</main>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches
+    && document.documentElement.dataset.theme !== "light";
+  const c = dark
+    ? { addFill: "#1c2f4a", addStroke: "#5b9cf0", updFill: "#47291c", updStroke: "#f2875c", txt: "#e8ebf2", line: "#9aa3b5", bg: "#1b2029", sg: "#161a22" }
+    : { addFill: "#e6f0fc", addStroke: "#2a78d6", updFill: "#fdece4", updStroke: "#eb6834", txt: "#1d2433", line: "#5b6475", bg: "#ffffff", sg: "#fafbfd" };
+  const el = document.getElementById("flow");
+  const src = document.getElementById("flow-src").textContent
+    .replaceAll("var(--addFill)", c.addFill).replaceAll("var(--addStroke)", c.addStroke)
+    .replaceAll("var(--updFill)", c.updFill).replaceAll("var(--updStroke)", c.updStroke)
+    .replaceAll("var(--txt)", c.txt);
+  el.className = "mermaid";
+  el.textContent = src;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "base",
+    flowchart: { curve: "basis", htmlLabels: true },
+    themeVariables: {
+      fontFamily: "Sarabun, system-ui, sans-serif", fontSize: "15px",
+      lineColor: c.line, textColor: c.txt, primaryTextColor: c.txt,
+      clusterBkg: c.sg, clusterBorder: c.line, edgeLabelBackground: c.bg,
+    },
+  });
+  await mermaid.run({ nodes: [el] });
+</script>
+</body>
+</html>

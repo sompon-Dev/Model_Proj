@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search Method Comparison</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f8fb; --card: #fcfcfb; --ink: #1d2433; --muted: #5b6475; --grid: #e6e8ee; --line: #e3e7ef;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121211; --card: #1a1a19; --ink: #f0efec; --muted: #c3c2b7; --grid: #2e2e2c; --line: #2e2e2c;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121211; --card: #1a1a19; --ink: #f0efec; --muted: #c3c2b7; --grid: #2e2e2c; --line: #2e2e2c;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Sarabun", system-ui, sans-serif; line-height: 1.6; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; margin: 0 0 2px; }
+  .sub, .note { color: var(--muted); }
+  .sub { margin: 0 0 20px; }
+  .note { font-size: .92rem; margin: 4px 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 20px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .kpi .v { font-size: 1.6rem; font-weight: 700; }
+  .kpi .l { color: var(--muted); font-size: .9rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 6px 0 10px; font-size: .95rem; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 6px; }
+  .tabs button { font: inherit; font-size: .9rem; border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 4px 12px; border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .chart { position: relative; }
+  svg { display: block; width: 100%; height: auto; font-family: inherit; }
+  .axis text { fill: var(--muted); font-size: 12px; }
+  .grid line { stroke: var(--grid); }
+  .tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: .88rem; box-shadow: 0 4px 14px rgba(0,0,0,.12); display: none; white-space: nowrap; z-index: 2; }
+  .tip b { display: block; margin-bottom: 2px; }
+  .tip .row { display: flex; align-items: center; gap: 6px; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--muted); font-size: .92rem; }
+  .tw { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; margin-top: 8px; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; }
+  .defs dt { font-weight: 700; } .defs dd { margin: 0 0 6px 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>เปรียบเทียบวิธีค้นหาเพลงจากเนื้อร้อง</h1>
+  <p class="sub">TestModel.csv 1,000 เพลง × คำค้น 9 ความยาว (1, 3, 5, 7, 9, 10, 12, 15, 20 คำ) = 9,000 คำค้น ·
+    Hybrid ใช้ค่า W_DENSE <span id="pW"></span>, cosine <span id="pR"></span></p>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card">
+    <h2>5 ค่าวัดผล (รวมทุกความยาวคำค้น)</h2>
+    <p class="note">Precision@11 มีค่าสูงสุดได้แค่ 1/11 ≈ 0.091 เพราะแต่ละคำค้นมีเพลงถูกเพียง 1 เพลงใน 11 อันดับ (F1@11 จึงสูงสุดได้ 0.167)</p>
+    <div class="legend" id="legend1"></div>
+    <div class="chart" id="bars"></div>
+    <details><summary>ดูเป็นตาราง</summary><div class="tw" id="t1"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>ผลตามความยาวคำค้น</h2>
+    <div class="tabs" id="tabs"></div>
+    <div class="legend" id="legend2"></div>
+    <div class="chart" id="lines"></div>
+    <details><summary>ดูเป็นตาราง</summary><div class="tw" id="t2"></div></details>
+  </div>
+
+  <div class="card">
+    <h2>นิยาม</h2>
+    <dl class="defs">
+      <dt>Precision@11</dt><dd>เฉลี่ยของ (จำนวนเพลงถูกใน Top 11 ÷ 11)</dd>
+      <dt>Recall@11</dt><dd>สัดส่วนคำค้นที่เพลงถูกติด Top 11 (11 = จำนวนผลที่แอปแสดง)</dd>
+      <dt>Accuracy (MRR)</dt><dd>เฉลี่ยของ 1 ÷ อันดับของเพลงถูก (อันดับ 1 = 1.0, อันดับ 2 = 0.5, …) ไม่ตัดอันดับ</dd>
+      <dt>F1@11</dt><dd>2 × Precision × Recall ÷ (Precision + Recall) ต่อคำค้น แล้วเฉลี่ย</dd>
+      <dt>P@1</dt><dd>สัดส่วนคำค้นที่เพลงถูกอยู่อันดับ 1</dd>
+      <dt>Matching word</dt><dd>นับว่าคำในคำค้น (หลังตัดคำ) มีอยู่ในเนื้อเพลงกี่คำ เพลงที่ตรงมากสุดได้อันดับ 1 ไม่ถ่วงน้ำหนักคำ</dd>
+      <dt>Dense 100% / Lexical 100%</dt><dd>สูตร Search.py เดียวกันแต่ W_DENSE = 1 (embedding ล้วน) / W_DENSE = 0 (TF-IDF ล้วน) คะแนนเพลง = chunk ที่ดีที่สุด</dd>
+      <dt>คะแนนเสมอกัน</dt><dd>สุ่มลำดับภายในกลุ่มที่เสมอ (seed คงที่) ใช้แบบเดียวกันทุกวิธี</dd>
+    </dl>
+  </div>
+</main>
+
+<script>
+const D = {"methods": ["Matching word", "Dense 100%", "Lexical 100%", "Hybrid (ระบบเรา)"], "lengths": [1, 3, 5, 7, 9, 10, 12, 15, 20], "data": {"Matching word": {"1": {"Precision@11": 0.013363636363636364, "Recall@11": 0.147, "Accuracy (MRR)": 0.07502555173960551, "F1@11": 0.024500000000000004, "P@1": 0.037}, "3": {"Precision@11": 0.05027272727272728, "Recall@11": 0.553, "Accuracy (MRR)": 0.3492269501642321, "F1@11": 0.09216666666666669, "P@1": 0.248}, "5": {"Precision@11": 0.07045454545454546, "Recall@11": 0.775, "Accuracy (MRR)": 0.6183460706421205, "F1@11": 0.12916666666666668, "P@1": 0.525}, "7": {"Precision@11": 0.08427272727272728, "Recall@11": 0.927, "Accuracy (MRR)": 0.7911148686018943, "F1@11": 0.1545, "P@1": 0.719}, "9": {"Precision@11": 0.08736363636363637, "Recall@11": 0.961, "Accuracy (MRR)": 0.8743897875815309, "F1@11": 0.16016666666666668, "P@1": 0.823}, "10": {"Precision@11": 0.0880909090909091, "Recall@11": 0.969, "Accuracy (MRR)": 0.8983382516055656, "F1@11": 0.1615, "P@1": 0.848}, "12": {"Precision@11": 0.08972727272727272, "Recall@11": 0.987, "Accuracy (MRR)": 0.9381891590254768, "F1@11": 0.1645, "P@1": 0.905}, "15": {"Precision@11": 0.09027272727272725, "Recall@11": 0.993, "Accuracy (MRR)": 0.9596932914813483, "F1@11": 0.1655, "P@1": 0.934}, "20": {"Precision@11": 0.09063636363636363, "Recall@11": 0.997, "Accuracy (MRR)": 0.9705151081069673, "F1@11": 0.16616666666666668, "P@1": 0.947}, "รวม": {"Precision@11": 0.07382828282828284, "Recall@11": 0.8121111111111111, "Accuracy (MRR)": 0.7194265598831935, "F1@11": 0.1353518518518519, "P@1": 0.6651111111111111}}, "Dense 100%": {"1": {"Precision@11": 0.013636363636363637, "Recall@11": 0.15, "Accuracy (MRR)": 0.07195052440114344, "F1@11": 0.025, "P@1": 0.037}, "3": {"Precision@11": 0.04536363636363638, "Recall@11": 0.499, "Accuracy (MRR)": 0.31686043700081384, "F1@11": 0.08316666666666668, "P@1": 0.229}, "5": {"Precision@11": 0.07154545454545455, "Recall@11": 0.787, "Accuracy (MRR)": 0.5899204949786563, "F1@11": 0.13116666666666668, "P@1": 0.498}, "7": {"Precision@11": 0.08263636363636365, "Recall@11": 0.909, "Accuracy (MRR)": 0.7716383845912, "F1@11": 0.1515, "P@1": 0.687}, "9": {"Precision@11": 0.08899999999999998, "Recall@11": 0.979, "Accuracy (MRR)": 0.8862427453558214, "F1@11": 0.16316666666666665, "P@1": 0.826}, "10": {"Precision@11": 0.08954545454545454, "Recall@11": 0.985, "Accuracy (MRR)": 0.9220586004834431, "F1@11": 0.16416666666666668, "P@1": 0.878}, "12": {"Precision@11": 0.09054545454545453, "Recall@11": 0.996, "Accuracy (MRR)": 0.9587340909090909, "F1@11": 0.166, "P@1": 0.928}, "15": {"Precision@11": 0.09081818181818181, "Recall@11": 0.999, "Accuracy (MRR)": 0.9729718614718615, "F1@11": 0.1665, "P@1": 0.95}, "20": {"Precision@11": 0.09081818181818181, "Recall@11": 0.999, "Accuracy (MRR)": 0.97975, "F1@11": 0.1665, "P@1": 0.961}, "รวม": {"Precision@11": 0.07376767676767677, "Recall@11": 0.8114444444444444, "Accuracy (MRR)": 0.7189030154657812, "F1@11": 0.13524074074074077, "P@1": 0.666}}, "Lexical 100%": {"1": {"Precision@11": 0.019545454545454546, "Recall@11": 0.215, "Accuracy (MRR)": 0.10677214075156019, "F1@11": 0.035833333333333335, "P@1": 0.055}, "3": {"Precision@11": 0.07954545454545456, "Recall@11": 0.875, "Accuracy (MRR)": 0.6652259239551906, "F1@11": 0.14583333333333334, "P@1": 0.552}, "5": {"Precision@11": 0.08845454545454545, "Recall@11": 0.973, "Accuracy (MRR)": 0.903437220479478, "F1@11": 0.16216666666666665, "P@1": 0.853}, "7": {"Precision@11": 0.09009090909090908, "Recall@11": 0.991, "Accuracy (MRR)": 0.9591321466481798, "F1@11": 0.16516666666666666, "P@1": 0.932}, "9": {"Precision@11": 0.09036363636363634, "Recall@11": 0.994, "Accuracy (MRR)": 0.9688086925810839, "F1@11": 0.16566666666666666, "P@1": 0.947}, "10": {"Precision@11": 0.09036363636363634, "Recall@11": 0.994, "Accuracy (MRR)": 0.9754347207745663, "F1@11": 0.16566666666666666, "P@1": 0.959}, "12": {"Precision@11": 0.09036363636363634, "Recall@11": 0.994, "Accuracy (MRR)": 0.9731011133360326, "F1@11": 0.16566666666666666, "P@1": 0.954}, "15": {"Precision@11": 0.09054545454545453, "Recall@11": 0.996, "Accuracy (MRR)": 0.9745172719021024, "F1@11": 0.166, "P@1": 0.954}, "20": {"Precision@11": 0.09063636363636363, "Recall@11": 0.997, "Accuracy (MRR)": 0.9826880289725229, "F1@11": 0.16616666666666668, "P@1": 0.969}, "รวม": {"Precision@11": 0.08110101010101012, "Recall@11": 0.8921111111111111, "Accuracy (MRR)": 0.8343463621556352, "F1@11": 0.14868518518518523, "P@1": 0.7972222222222223}}, "Hybrid (ระบบเรา)": {"1": {"Precision@11": 0.021090909090909094, "Recall@11": 0.232, "Accuracy (MRR)": 0.11501650430899363, "F1@11": 0.03866666666666667, "P@1": 0.064}, "3": {"Precision@11": 0.08045454545454546, "Recall@11": 0.885, "Accuracy (MRR)": 0.675678543714534, "F1@11": 0.1475, "P@1": 0.556}, "5": {"Precision@11": 0.08918181818181817, "Recall@11": 0.981, "Accuracy (MRR)": 0.9166558778375286, "F1@11": 0.1635, "P@1": 0.869}, "7": {"Precision@11": 0.09081818181818181, "Recall@11": 0.999, "Accuracy (MRR)": 0.9706504329004328, "F1@11": 0.1665, "P@1": 0.948}, "9": {"Precision@11": 0.09090909090909091, "Recall@11": 1.0, "Accuracy (MRR)": 0.97745, "F1@11": 0.16666666666666666, "P@1": 0.958}, "10": {"Precision@11": 0.09081818181818181, "Recall@11": 0.999, "Accuracy (MRR)": 0.9813214285714286, "F1@11": 0.1665, "P@1": 0.966}, "12": {"Precision@11": 0.09081818181818181, "Recall@11": 0.999, "Accuracy (MRR)": 0.9802380952380951, "F1@11": 0.1665, "P@1": 0.964}, "15": {"Precision@11": 0.09081818181818181, "Recall@11": 0.999, "Accuracy (MRR)": 0.9817380952380952, "F1@11": 0.1665, "P@1": 0.965}, "20": {"Precision@11": 0.09090909090909091, "Recall@11": 1.0, "Accuracy (MRR)": 0.9834242424242425, "F1@11": 0.16666666666666666, "P@1": 0.968}, "รวม": {"Precision@11": 0.08175757575757578, "Recall@11": 0.8993333333333333, "Accuracy (MRR)": 0.842463691137039, "F1@11": 0.14988888888888893, "P@1": 0.8064444444444444}}}, "params": {"W_DENSE": 0.2, "DENSE_LO": 0.6, "DENSE_HI": 0.9}};
+const M = D.methods;
+const COL = ["var(--s4)", "var(--s3)", "var(--s2)", "var(--s1)"];   // Matching, Dense, Lexical, Hybrid(ระบบเรา)=blue
+const METRICS = ["Precision@11", "Recall@11", "Accuracy (MRR)", "F1@11", "P@1"];
+const L = D.lengths;
+const f3 = v => v.toFixed(3);
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+document.getElementById("pW").textContent = D.params.W_DENSE;
+document.getElementById("pR").textContent = D.params.DENSE_LO.toFixed(2) + "–" + D.params.DENSE_HI.toFixed(2);
+
+// KPI: P@1 รวม
+document.getElementById("kpis").innerHTML = M.map((m, i) =>
+  `<div class="kpi" style="border-top:3px solid ${COL[i]}"><div class="l">${m} · P@1</div><div class="v">${f3(D.data[m]["รวม"]["P@1"])}</div><div class="l">MRR ${f3(D.data[m]["รวม"]["Accuracy (MRR)"])}</div></div>`).join("");
+
+const legendHTML = M.map((m, i) => `<span><i class="sw" style="background:${COL[i]}"></i>${m}</span>`).join("");
+document.getElementById("legend1").innerHTML = legendHTML;
+document.getElementById("legend2").innerHTML = legendHTML;
+
+function tipFor(container) {
+  const t = document.createElement("div"); t.className = "tip"; container.appendChild(t);
+  return {
+    show(html, x, y) { t.innerHTML = html; t.style.display = "block";
+      const w = t.offsetWidth, cw = container.clientWidth;
+      t.style.left = Math.min(Math.max(x + 12, 0), cw - w) + "px"; t.style.top = (y - t.offsetHeight - 10) + "px"; },
+    hide() { t.style.display = "none"; }
+  };
+}
+const toPx = (svg, x, y) => { const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal; return [x * r.width / vb.width, y * r.height / vb.height]; };
+
+// ---------- Chart 1: grouped bars ----------
+(function () {
+  const box = document.getElementById("bars");
+  const W = 1000, H = 400, ml = 46, mr = 10, mt = 20, mb = 44;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "กราฟแท่ง 5 ค่าวัดผลของ 4 วิธี" }, box);
+  const tip = tipFor(box);
+  const pw = W - ml - mr, ph = H - mt - mb, y = v => mt + ph * (1 - v);
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  for (let v = 0; v <= 1.0001; v += 0.2) {
+    el("line", { x1: ml, x2: W - mr, y1: y(v), y2: y(v) }, g);
+    el("text", { x: ml - 8, y: y(v) + 4, "text-anchor": "end" }, ax).textContent = v.toFixed(1);
+  }
+  const gw = pw / METRICS.length, bw = Math.min(30, (gw - 40) / M.length), gap = 2;
+  METRICS.forEach((met, gi) => {
+    const gx = ml + gi * gw + (gw - (bw + gap) * M.length) / 2;
+    el("text", { x: ml + gi * gw + gw / 2, y: H - mb + 22, "text-anchor": "middle", style: "fill:var(--ink);font-size:14px" }, ax).textContent = met;
+    M.forEach((m, mi) => {
+      const v = D.data[m]["รวม"][met], x = gx + mi * (bw + gap), top = y(v), h = y(0) - top;
+      const r = Math.min(4, h);
+      el("path", { d: `M${x},${y(0)} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${y(0)} Z`, fill: COL[mi] }, svg);
+      if (mi === M.length - 1) el("text", { x: x + bw / 2, y: top - 6, "text-anchor": "middle", style: "fill:var(--ink);font-size:12px;font-weight:600" }, svg).textContent = f3(v);
+      const hit = el("rect", { x: x - 1, y: mt, width: bw + 2, height: ph, fill: "transparent" }, svg);
+      hit.addEventListener("mousemove", e => { const [px, py] = toPx(svg, x + bw / 2, top);
+        tip.show(`<b>${met}</b><div class="row"><i class="sw" style="background:${COL[mi]}"></i>${m}: ${f3(v)}</div>`, px, py); });
+      hit.addEventListener("mouseleave", () => tip.hide());
+    });
+  });
+  el("line", { x1: ml, x2: W - mr, y1: y(0), y2: y(0), stroke: "var(--muted)" }, svg);
+  document.getElementById("t1").innerHTML = `<table><thead><tr><th>วิธี</th>${METRICS.map(m => `<th>${m}</th>`).join("")}</tr></thead><tbody>${
+    M.map(m => `<tr><td>${m}</td>${METRICS.map(k => `<td>${f3(D.data[m]["รวม"][k])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+})();
+
+// ---------- Chart 2: lines by query length ----------
+let current = "P@1";
+const tabs = document.getElementById("tabs");
+METRICS.forEach(met => { const b = document.createElement("button"); b.textContent = met; b.setAttribute("aria-pressed", met === current);
+  b.onclick = () => { current = met; [...tabs.children].forEach(c => c.setAttribute("aria-pressed", c.textContent === met)); drawLines(); }; tabs.appendChild(b); });
+
+function drawLines() {
+  const box = document.getElementById("lines"); box.innerHTML = "";
+  const W = 1000, H = 380, ml = 52, mr = 150, mt = 16, mb = 42;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `กราฟเส้น ${current} ตามความยาวคำค้น` }, box);
+  const tip = tipFor(box);
+  const vals = M.flatMap(m => L.map(n => D.data[m][n][current]));
+  const ymax = current === "Precision@11" ? 0.1 : current === "F1@11" ? 0.18 : 1;
+  const pw = W - ml - mr, ph = H - mt - mb;
+  const x = n => ml + (n - 1) / 19 * pw, y = v => mt + ph * (1 - v / ymax);
+  const g = el("g", { class: "grid" }, svg), ax = el("g", { class: "axis" }, svg);
+  for (let i = 0; i <= 5; i++) { const v = ymax * i / 5;
+    el("line", { x1: ml, x2: ml + pw, y1: y(v), y2: y(v) }, g);
+    el("text", { x: ml - 8, y: y(v) + 4, "text-anchor": "end" }, ax).textContent = ymax < 0.5 ? v.toFixed(3) : v.toFixed(1); }
+  L.forEach(n => el("text", { x: x(n), y: H - mb + 20, "text-anchor": "middle" }, ax).textContent = n);
+  el("text", { x: ml + pw / 2, y: H - 4, "text-anchor": "middle" }, ax).textContent = "ความยาวคำค้น (คำ)";
+  el("line", { x1: ml, x2: ml + pw, y1: y(0), y2: y(0), stroke: "var(--muted)" }, svg);
+  // ป้ายท้ายเส้น (กันทับกัน)
+  const ends = M.map((m, i) => ({ i, m, yv: y(D.data[m][20][current]) })).sort((a, b) => a.yv - b.yv);
+  for (let k = 1; k < ends.length; k++) if (ends[k].yv - ends[k - 1].yv < 16) ends[k].yv = ends[k - 1].yv + 16;
+  M.forEach((m, i) => {
+    el("path", { d: L.map((n, j) => `${j ? "L" : "M"}${x(n)},${y(D.data[m][n][current])}`).join(" "), fill: "none", stroke: COL[i], "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+    L.forEach(n => el("circle", { cx: x(n), cy: y(D.data[m][n][current]), r: 4, fill: COL[i], stroke: "var(--card)", "stroke-width": 2 }, svg));
+  });
+  ends.forEach(e => el("text", { x: x(20) + 10, y: e.yv + 4, style: "fill:var(--ink);font-size:13px" }, svg).textContent = e.m);
+  const cross = el("line", { y1: mt, y2: mt + ph, stroke: "var(--muted)", "stroke-dasharray": "3 3", visibility: "hidden" }, svg);
+  const hit = el("rect", { x: ml, y: mt, width: pw, height: ph, fill: "transparent" }, svg);
+  hit.addEventListener("mousemove", e => {
+    const r = svg.getBoundingClientRect(), vx = (e.clientX - r.left) * W / r.width;
+    const n = L.reduce((a, b) => Math.abs(x(b) - vx) < Math.abs(x(a) - vx) ? b : a);
+    cross.setAttribute("x1", x(n)); cross.setAttribute("x2", x(n)); cross.setAttribute("visibility", "visible");
+    const rows = M.map((m, i) => ({ m, i, v: D.data[m][n][current] })).sort((a, b) => b.v - a.v);
+    const [px, py] = toPx(svg, x(n), mt + 60);
+    tip.show(`<b>${n} คำ · ${current}</b>` + rows.map(o => `<div class="row"><i class="sw" style="background:${COL[o.i]}"></i>${o.m}: ${f3(o.v)}</div>`).join(""), px, py + 100);
+  });
+  hit.addEventListener("mouseleave", () => { tip.hide(); cross.setAttribute("visibility", "hidden"); });
+  document.getElementById("t2").innerHTML = `<table><thead><tr><th>${current}</th>${L.map(n => `<th>${n} คำ</th>`).join("")}</tr></thead><tbody>${
+    M.map(m => `<tr><td>${m}</td>${L.map(n => `<td>${f3(D.data[m][n][current])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+drawLines();
+</script>
+</body>
+</html>
