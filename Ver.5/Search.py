@@ -9,7 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from textproc import preprocess
 
 BASE_PATH = Path(__file__).parent
-W_DENSE   = 0.2   # น้ำหนักความหมาย (embedding) ส่วนที่เหลือเป็นน้ำหนักคำที่ตรงกัน (TF-IDF)
+W_DENSE   = 0.8   # น้ำหนักความหมาย (embedding) ส่วนที่เหลือเป็นน้ำหนักคำที่ตรงกัน (TF-IDF)
 # ค่า W_DENSE / DENSE_LO / DENSE_HI ได้จาก grid search 400 ชุดค่า บนชุด tune 1,000 เพลง (TestCase_2.csv)
 # แล้วยืนยันบนชุด test อีก 1,000 เพลงที่ไม่ซ้ำกัน: MRR 0.8969 -> 0.9035, P@1 0.849 -> 0.858 (ค่าเดิม 0.3 / 0.70 / 0.95)
 DENSE_LO  = 0.60  # cosine เท่านี้ -> dense = 0
